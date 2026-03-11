@@ -23,6 +23,21 @@ Job Layer        → ProcessTelegramUpdateJob
 Storage Layer    → Eloquent Models + Repositories
 ```
 
+## Стратегия интеграции Telegram Bot SDK
+
+SDK (`irazasyed/telegram-bot-sdk`) используется **только в app/ слое**, чтобы не нарушать
+чистоту `src/TelegramBot/` модуля.
+
+| Место                          | Использование SDK                                                  |
+|--------------------------------|--------------------------------------------------------------------|
+| `TelegramWebhookController`    | **Не использует** — `$request->all()` совместим с Laravel-тестами. `Telegram::getWebhookUpdate()` читает `php://input` напрямую и ломает тесты |
+| `TelegramAdapter` (реализация) | Инжектирует `Telegram\Bot\Api` через конструктор — sendMessage, getFile, downloadFile |
+| `TelegramUpdateParser`         | **Не использует SDK** — работает с сырым `array` (тестируемость)  |
+| `TelegramAdapterInterface`     | **Не знает о SDK** — чистый контракт                              |
+
+Биндинг `Telegram\Bot\Api` → `TelegramAdapterInterface` прописывается в `AppServiceProvider`.
+`webhook_secret` добавлен в `config/telegram.php` (ключ `telegram.webhook_secret`).
+
 ---
 
 ## Фазы разработки
@@ -192,33 +207,25 @@ interface TelegramAdapterInterface
 **Тест (Feature):** `tests/Feature/Webhook/TelegramWebhookTest.php`
 
 ```
-[ ] POST /webhooks/telegram возвращает 200
-[ ] POST с валидным update сохраняет запись в telegram_messages
-[ ] POST с невалидным secret token возвращает 403
-[ ] POST с уже известным update_id не создаёт дубль (idempotency)
-[ ] POST без body возвращает 400
+[x] POST /webhooks/telegram возвращает 200
+[x] POST с валидным update сохраняет запись в telegram_messages
+[x] POST с невалидным secret token возвращает 403
+[x] POST с уже известным update_id не создаёт дубль (idempotency)
+[x] POST без body возвращает 400
 ```
 
-**Шаги реализации:**
+**Реализация:**
 
-1. Написать тесты (все Red)
-2. Создать миграцию `create_telegram_messages_table`
-
-```sql
-id
-, update_id (unique), message_id, chat_id, chat_type,
-user_id, username, first_name, text, caption,
-payload_json (json), received_at, created_at
-```
-
-3. Создать модель `TelegramMessage`
-4. Создать `TelegramWebhookController@handle`
-    - Проверка `X-Telegram-Bot-Api-Secret-Token`
-    - Сохранение raw payload
-    - Dispatch `ProcessTelegramUpdateJob`
-    - Возврат `200 OK`
-5. Добавить роут `POST /webhooks/telegram` (без CSRF)
-6. Прогнать тесты (все Green)
+- Тест: `tests/Feature/Webhook/TelegramWebhookTest.php`
+- Миграция: `database/migrations/2026_03_11_224425_create_telegram_messages_table.php`
+- Модель: `app/Models/TelegramMessage.php`
+- Контроллер: `app/Http/Controllers/TelegramWebhookController.php`
+  - Проверка `X-Telegram-Bot-Api-Secret-Token`
+  - `firstOrCreate` по `update_id` (idempotency)
+  - Возврат `200 OK`
+- Роут: `routes/webhook.php` → `POST /webhooks/telegram`
+  - Зарегистрирован в `bootstrap/app.php` через `middleware('api')` (без CSRF)
+- Dispatch `ProcessTelegramUpdateJob` — добавить в Фазе 4
 
 ### 1.2 Миграция `telegram_files`
 
@@ -235,22 +242,27 @@ mime_type, size, created_at
 
 ### 2.1 DTO
 
-**Файл:** `app/DTOs/TelegramMessageDTO.php`
+**Файл:** `src/TelegramBot/DTOs/TelegramMessageDTO.php` ✓
 
 ```php
 readonly class TelegramMessageDTO {
-    string $messageType;   // text | photo | text_photo | command
+    string $messageType;    // text | photo | text_photo | command
     ?string $text;
     ?string $caption;
-    array $photos;         // массив file_id
+    array $photos;          // массив file_id (наибольший размер)
     array $documents;
     int $userId;
     string $chatId;
-    string $chatType;      // private | group | supergroup
-    ?string $command;      // /start | /bug | /task | null
+    string $chatType;       // private | group | supergroup | channel
+    ?string $command;       // /start | /bug | /task | null
     ?string $username;
     ?string $firstName;
     \DateTimeImmutable $sentAt;
+
+    // Вспомогательные методы:
+    public function hasText(): bool
+    public function hasMedia(): bool
+    public function isCommand(): bool
 }
 ```
 
@@ -259,17 +271,17 @@ readonly class TelegramMessageDTO {
 **Тест (Unit):** `tests/Unit/Parsers/TelegramUpdateParserTest.php`
 
 ```
-[ ] Парсит текстовое сообщение → messageType = 'text'
-[ ] Парсит фото без текста → messageType = 'photo'
-[ ] Парсит фото с caption → messageType = 'text_photo'
-[ ] Определяет команду /bug → command = '/bug'
-[ ] Определяет тип чата: private / group / supergroup
-[ ] Возвращает null если update не содержит message
-[ ] Правильно извлекает user_id, username, chat_id
-[ ] Правильно разбирает массив photos (берёт наибольший file_id)
+[x] Парсит текстовое сообщение → messageType = 'text'
+[x] Парсит фото без текста → messageType = 'photo'
+[x] Парсит фото с caption → messageType = 'text_photo'
+[x] Определяет команду /bug → command = '/bug'
+[x] Определяет тип чата: private / group / supergroup
+[x] Возвращает null если update не содержит message
+[x] Правильно извлекает user_id, username, chat_id
+[x] Правильно разбирает массив photos (берёт наибольший file_id)
 ```
 
-**Реализация:** `app/Parsers/TelegramUpdateParser.php`
+**Реализация:** `src/TelegramBot/Parsers/TelegramUpdateParser.php`
 
 ```php
 interface UpdateParserInterface {
