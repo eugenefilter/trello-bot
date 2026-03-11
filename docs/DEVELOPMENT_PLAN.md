@@ -297,30 +297,32 @@ interface UpdateParserInterface {
 
 ## Фаза 3. Базовая интеграция Trello (create card)
 
-### 3.1 Миграции Trello-справочников
+### 3.1 Миграции Trello-справочников ✓
 
 ```
 trello_connections (id, name, api_key, api_token, board_id, is_active)
-trello_lists       (id, connection_id, trello_list_id, board_id, name, is_active)
-trello_labels      (id, connection_id, trello_label_id, board_id, name, color, is_active)
-trello_members     (id, connection_id, trello_member_id, username, full_name, is_active)
+trello_lists       (id, connection_id FK, trello_list_id, board_id, name, is_active)
+trello_labels      (id, connection_id FK, trello_label_id, board_id, name, color, is_active)
+trello_members     (id, connection_id FK, trello_member_id, username, full_name, is_active)
 trello_cards_log   (id, telegram_message_id FK, trello_card_id, trello_card_url,
                     trello_list_id, status, error_message, created_at)
 ```
+
+**Модели:** `app/Models/TrelloConnection.php`, `TrelloList.php`, `TrelloLabel.php`, `TrelloMember.php`, `TrelloCardLog.php`
 
 ### 3.2 TrelloAdapter
 
 **Тест (Unit):** `tests/Unit/Adapters/TrelloAdapterTest.php`
 
 ```
-[ ] createCard вызывает POST /cards с правильными параметрами
-[ ] createCard возвращает TrelloCardDTO с id и url
-[ ] При 401 от Trello выбрасывает TrelloAuthException
-[ ] При 422 от Trello выбрасывает TrelloValidationException
-[ ] При сетевой ошибке выбрасывает TrelloConnectionException
+[x] createCard вызывает POST /cards с правильными параметрами
+[x] createCard возвращает CreatedCardResult с id и url
+[x] При 401 от Trello выбрасывает TrelloAuthException
+[x] При 422 от Trello выбрасывает TrelloValidationException
+[x] При сетевой ошибке выбрасывает TrelloConnectionException
 ```
 
-**Реализация:** `app/Adapters/TrelloAdapter.php`
+**Реализация:** `src/TelegramBot/Adapters/TrelloAdapter.php`
 
 ```php
 interface TrelloAdapterInterface {
@@ -354,13 +356,13 @@ readonly class TrelloCardDTO {
 **Тест (Unit):** `tests/Unit/Services/TrelloCardCreatorTest.php`
 
 ```
-[ ] Создаёт карточку с названием по шаблону из routing rule
-[ ] Создаёт карточку с описанием из DTO сообщения
-[ ] Вызывает addMembers после создания
-[ ] Вызывает addLabels после создания
-[ ] Сохраняет запись в trello_cards_log со статусом 'success'
-[ ] При ошибке Trello сохраняет запись в trello_cards_log со статусом 'error'
-[ ] При ошибке пробрасывает исключение выше
+[x] Создаёт карточку с названием по шаблону из routing rule
+[x] Создаёт карточку с описанием из DTO сообщения
+[x] Вызывает addMembers после создания
+[x] Вызывает addLabels после создания
+[x] Сохраняет запись в trello_cards_log со статусом 'success'
+[x] При ошибке Trello сохраняет запись в trello_cards_log со статусом 'error'
+[x] При ошибке пробрасывает исключение выше
 ```
 
 ---
