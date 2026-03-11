@@ -24,7 +24,8 @@ return new class extends Migration
             $table->json('payload_json');                // полный сырой update для отладки и retry
             $table->timestamp('received_at');            // момент получения webhook
             $table->timestamp('processed_at')->nullable(); // null = ещё не обработан Job-ом
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

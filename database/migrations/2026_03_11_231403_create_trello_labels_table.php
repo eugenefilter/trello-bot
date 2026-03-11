@@ -16,7 +16,8 @@ return new class extends Migration
             $table->string('name')->nullable();          // метка может быть без названия (только цвет)
             $table->string('color', 30)->nullable();     // green | yellow | red | purple | blue | sky и т.д.
             $table->boolean('is_active')->default(true);
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

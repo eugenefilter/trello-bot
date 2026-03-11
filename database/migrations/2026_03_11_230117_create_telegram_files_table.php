@@ -21,7 +21,8 @@ return new class extends Migration
             $table->string('local_path')->nullable();  // локальный путь после скачивания на сервер
             $table->string('mime_type')->nullable();
             $table->unsignedBigInteger('size')->nullable();  // размер в байтах
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

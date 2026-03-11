@@ -15,7 +15,8 @@ return new class extends Migration
             $table->string('username');                  // @username в Trello
             $table->string('full_name');                 // отображаемое имя
             $table->boolean('is_active')->default(true); // false = участник покинул доску
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

@@ -16,7 +16,8 @@ return new class extends Migration
             $table->string('trello_list_id')->nullable();  // в какой список пытались создать
             $table->string('status', 20);                  // success | error
             $table->text('error_message')->nullable();     // детали ошибки при status = error
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

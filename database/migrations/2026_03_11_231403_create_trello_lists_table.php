@@ -15,7 +15,8 @@ return new class extends Migration
             $table->string('board_id');                  // ID доски (денормализовано для быстрых запросов)
             $table->string('name');                      // название списка (To Do, In Progress и т.д.)
             $table->boolean('is_active')->default(true); // false = список удалён на стороне Trello
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

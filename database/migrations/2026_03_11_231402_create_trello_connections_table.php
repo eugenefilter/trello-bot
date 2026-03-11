@@ -15,7 +15,8 @@ return new class extends Migration
             $table->string('api_token');                 // Trello User Token
             $table->string('board_id');                  // ID доски Trello
             $table->boolean('is_active')->default(true); // false = подключение отключено
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 
