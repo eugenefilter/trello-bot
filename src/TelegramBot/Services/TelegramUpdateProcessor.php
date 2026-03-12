@@ -7,6 +7,7 @@ namespace TelegramBot\Services;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\RoutingResultDTO;
 
 /**
  * Оркестрирует обработку одного Telegram update.
@@ -15,8 +16,9 @@ use TelegramBot\Contracts\UpdateParserInterface;
  *   1. Загружает payload из репозитория
  *   2. Парсит payload → TelegramMessageDTO (null = неподдерживаемый тип)
  *   3. Ищет routing rule → RoutingResultDTO (null = нет подходящего правила)
- *   4. Создаёт карточку в Trello
- *   5. Помечает сообщение как обработанное
+ *   4. Рендерит шаблоны карточки через CardTemplateRenderer
+ *   5. Создаёт карточку в Trello
+ *   6. Помечает сообщение как обработанное
  *
  * При исключении из TrelloCardCreator markProcessed не вызывается —
  * Job повторит обработку согласно политике retry.
@@ -28,6 +30,7 @@ class TelegramUpdateProcessor
         private readonly UpdateParserInterface $parser,
         private readonly RoutingEngineInterface $routing,
         private readonly TrelloCardCreator $cardCreator,
+        private readonly CardTemplateRenderer $renderer,
     ) {}
 
     /**
@@ -51,7 +54,15 @@ class TelegramUpdateProcessor
             return;
         }
 
-        $this->cardCreator->create($dto, $routingResult, $telegramMessageId);
+        $rendered = new RoutingResultDTO(
+            listId:                  $routingResult->listId,
+            memberIds:               $routingResult->memberIds,
+            labelIds:                $routingResult->labelIds,
+            cardTitleTemplate:       $this->renderer->render($routingResult->cardTitleTemplate, $dto),
+            cardDescriptionTemplate: $this->renderer->render($routingResult->cardDescriptionTemplate, $dto),
+        );
+
+        $this->cardCreator->create($dto, $rendered, $telegramMessageId);
 
         $this->repository->markProcessed($telegramMessageId);
     }

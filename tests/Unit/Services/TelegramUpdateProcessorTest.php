@@ -15,6 +15,7 @@ use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Exceptions\TrelloConnectionException;
+use TelegramBot\Services\CardTemplateRenderer;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use TelegramBot\Services\TrelloCardCreator;
 
@@ -26,18 +27,22 @@ use TelegramBot\Services\TrelloCardCreator;
 class TelegramUpdateProcessorTest extends TestCase
 {
     private MockInterface $repository;
+
     private MockInterface $parser;
+
     private MockInterface $routing;
+
     private MockInterface $cardCreator;
+
     private TelegramUpdateProcessor $processor;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->repository  = Mockery::mock(TelegramMessageRepositoryInterface::class);
-        $this->parser      = Mockery::mock(UpdateParserInterface::class);
-        $this->routing     = Mockery::mock(RoutingEngineInterface::class);
+        $this->repository = Mockery::mock(TelegramMessageRepositoryInterface::class);
+        $this->parser = Mockery::mock(UpdateParserInterface::class);
+        $this->routing = Mockery::mock(RoutingEngineInterface::class);
         $this->cardCreator = Mockery::mock(TrelloCardCreator::class);
 
         $this->processor = new TelegramUpdateProcessor(
@@ -45,6 +50,7 @@ class TelegramUpdateProcessorTest extends TestCase
             $this->parser,
             $this->routing,
             $this->cardCreator,
+            new CardTemplateRenderer,
         );
     }
 
@@ -62,13 +68,20 @@ class TelegramUpdateProcessorTest extends TestCase
      */
     public function test_happy_path_creates_card_and_marks_processed(): void
     {
-        $dto     = $this->makeMessageDTO();
+        $dto = $this->makeMessageDTO();
         $routing = $this->makeRoutingResult();
 
         $this->repository->shouldReceive('getPayload')->once()->with(1)->andReturn(['update_id' => 1]);
         $this->parser->shouldReceive('parse')->once()->andReturn($dto);
         $this->routing->shouldReceive('resolve')->once()->with($dto)->andReturn($routing);
-        $this->cardCreator->shouldReceive('create')->once()->with($dto, $routing, 1)
+        $this->cardCreator->shouldReceive('create')
+            ->once()
+            ->withArgs(function (TelegramMessageDTO $msg, RoutingResultDTO $rendered, int $id) use ($routing) {
+                return $id === 1
+                    && $rendered->listId === $routing->listId
+                    && ! str_contains($rendered->cardTitleTemplate, '{{')
+                    && ! str_contains($rendered->cardDescriptionTemplate, '{{');
+            })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
@@ -125,27 +138,27 @@ class TelegramUpdateProcessorTest extends TestCase
     {
         return new TelegramMessageDTO(
             messageType: 'text',
-            text:        'Hello world',
-            caption:     null,
-            photos:      [],
-            documents:   [],
-            userId:      42,
-            chatId:      '100',
-            chatType:    'private',
-            command:     null,
-            username:    'testuser',
-            firstName:   'Test',
-            sentAt:      new DateTimeImmutable(),
+            text: 'Hello world',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'private',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
         );
     }
 
     private function makeRoutingResult(): RoutingResultDTO
     {
         return new RoutingResultDTO(
-            listId:                  'list-abc',
-            memberIds:               [],
-            labelIds:                [],
-            cardTitleTemplate:       '{{first_name}}: {{text_preview}}',
+            listId: 'list-abc',
+            memberIds: [],
+            labelIds: [],
+            cardTitleTemplate: '{{first_name}}: {{text_preview}}',
             cardDescriptionTemplate: '{{text}}',
         );
     }

@@ -1,0 +1,200 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit\Services;
+
+use DateTimeImmutable;
+use PHPUnit\Framework\TestCase;
+use TelegramBot\DTOs\TelegramMessageDTO;
+use TelegramBot\Services\CardTemplateRenderer;
+
+/**
+ * Unit-тест CardTemplateRenderer.
+ *
+ * Чистый PHP-тест — никаких зависимостей от Laravel.
+ * Проверяет замену переменных шаблона значениями из TelegramMessageDTO.
+ */
+class CardTemplateRendererTest extends TestCase
+{
+    private CardTemplateRenderer $renderer;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->renderer = new CardTemplateRenderer();
+    }
+
+    /**
+     * {{first_name}} заменяется именем пользователя.
+     */
+    public function test_replaces_first_name(): void
+    {
+        $result = $this->renderer->render('Привет, {{first_name}}!', $this->makeDTO());
+
+        $this->assertSame('Привет, Иван!', $result);
+    }
+
+    /**
+     * {{username}} заменяется никнеймом пользователя.
+     */
+    public function test_replaces_username(): void
+    {
+        $result = $this->renderer->render('User: @{{username}}', $this->makeDTO());
+
+        $this->assertSame('User: @ivanov', $result);
+    }
+
+    /**
+     * {{user_id}} заменяется числовым ID пользователя.
+     */
+    public function test_replaces_user_id(): void
+    {
+        $result = $this->renderer->render('ID: {{user_id}}', $this->makeDTO());
+
+        $this->assertSame('ID: 123456', $result);
+    }
+
+    /**
+     * {{date}} заменяется датой отправки в формате дд.мм.гггг.
+     */
+    public function test_replaces_date(): void
+    {
+        $result = $this->renderer->render('{{date}}', $this->makeDTO());
+
+        $this->assertSame('15.06.2024', $result);
+    }
+
+    /**
+     * {{time}} заменяется временем отправки в формате чч:мм.
+     */
+    public function test_replaces_time(): void
+    {
+        $result = $this->renderer->render('{{time}}', $this->makeDTO());
+
+        $this->assertSame('14:30', $result);
+    }
+
+    /**
+     * {{text_preview}} заменяется первыми 80 символами текста.
+     */
+    public function test_replaces_text_preview_with_first_80_chars(): void
+    {
+        $longText = str_repeat('А', 100);
+        $dto      = $this->makeDTO(text: $longText);
+
+        $result = $this->renderer->render('{{text_preview}}', $dto);
+
+        $this->assertSame(str_repeat('А', 80), $result);
+        $this->assertSame(80, mb_strlen($result));
+    }
+
+    /**
+     * {{text_preview}} корректно работает с коротким текстом (меньше 80 символов).
+     */
+    public function test_replaces_text_preview_short_text(): void
+    {
+        $result = $this->renderer->render('{{text_preview}}', $this->makeDTO());
+
+        $this->assertSame('Привет, мир!', $result);
+    }
+
+    /**
+     * {{text}} заменяется полным текстом сообщения.
+     */
+    public function test_replaces_text_with_full_text(): void
+    {
+        $result = $this->renderer->render('Текст: {{text}}', $this->makeDTO());
+
+        $this->assertSame('Текст: Привет, мир!', $result);
+    }
+
+    /**
+     * {{chat_type}} заменяется типом чата.
+     */
+    public function test_replaces_chat_type(): void
+    {
+        $result = $this->renderer->render('({{chat_type}})', $this->makeDTO());
+
+        $this->assertSame('(private)', $result);
+    }
+
+    /**
+     * Несколько переменных заменяются одновременно.
+     */
+    public function test_replaces_multiple_variables(): void
+    {
+        $template = '{{first_name}} (@{{username}}) — {{date}} {{time}}';
+
+        $result = $this->renderer->render($template, $this->makeDTO());
+
+        $this->assertSame('Иван (@ivanov) — 15.06.2024 14:30', $result);
+    }
+
+    /**
+     * Неизвестные переменные остаются как есть.
+     */
+    public function test_unknown_variables_remain_unchanged(): void
+    {
+        $result = $this->renderer->render('{{unknown}} {{first_name}}', $this->makeDTO());
+
+        $this->assertSame('{{unknown}} Иван', $result);
+    }
+
+    /**
+     * Если firstName = null, вставляется пустая строка.
+     */
+    public function test_null_first_name_renders_as_empty_string(): void
+    {
+        $dto    = $this->makeDTO(firstName: null);
+        $result = $this->renderer->render('{{first_name}}', $dto);
+
+        $this->assertSame('', $result);
+    }
+
+    /**
+     * Если текст null, для text и text_preview вставляется пустая строка.
+     */
+    public function test_null_text_renders_as_empty_string(): void
+    {
+        $dto    = $this->makeDTO(text: null);
+        $result = $this->renderer->render('{{text}} / {{text_preview}}', $dto);
+
+        $this->assertSame(' / ', $result);
+    }
+
+    /**
+     * Если текст null, но есть caption — используется caption.
+     */
+    public function test_uses_caption_when_text_is_null(): void
+    {
+        $dto = $this->makeDTO(text: null, caption: 'Подпись к фото');
+
+        $result = $this->renderer->render('{{text}}', $dto);
+
+        $this->assertSame('Подпись к фото', $result);
+    }
+
+    // --- Fixtures ---
+
+    private function makeDTO(
+        ?string $text      = 'Привет, мир!',
+        ?string $caption   = null,
+        ?string $firstName = 'Иван',
+    ): TelegramMessageDTO {
+        return new TelegramMessageDTO(
+            messageType: 'text',
+            text:        $text,
+            caption:     $caption,
+            photos:      [],
+            documents:   [],
+            userId:      123456,
+            chatId:      '999',
+            chatType:    'private',
+            command:     null,
+            username:    'ivanov',
+            firstName:   $firstName,
+            sentAt:      new DateTimeImmutable('2024-06-15 14:30:00'),
+        );
+    }
+}
