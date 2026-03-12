@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Adapters\TelegramAdapter;
+use App\Models\TrelloConnection;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use Telegram\Bot\Api;
 use TelegramBot\Adapters\TrelloAdapter;
-use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
@@ -52,15 +53,15 @@ class AppServiceProvider extends ServiceProvider
             $token = config('telegram.bots.mybot.token', '');
 
             return new TelegramAdapter(
-                telegram:   new Api($token),
-                botToken:   $token,
+                telegram: new Api($token),
+                botToken: $token,
                 storageDir: storage_path('app/telegram_files'),
             );
         });
 
         // Trello API клиент — credentials берутся из первого активного подключения в БД
         $this->app->bind(TrelloAdapterInterface::class, function ($app) {
-            $connection = \App\Models\TrelloConnection::where('is_active', true)->first();
+            $connection = TrelloConnection::where('is_active', true)->first();
 
             return new TrelloAdapter(
                 http: $app->make(HttpFactory::class),

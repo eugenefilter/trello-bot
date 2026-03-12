@@ -41,20 +41,20 @@ TPL;
 
     public function render(string $template, TelegramMessageDTO $message): string
     {
-        $raw  = $message->text ?? $message->caption ?? '';
+        $raw = $message->text ?? $message->caption ?? '';
         $text = ($message->command !== null && str_starts_with($raw, $message->command))
             ? ltrim(mb_substr($raw, mb_strlen($message->command)))
             : $raw;
 
         $vars = [
-            '{{first_name}}'   => $message->firstName ?? '',
-            '{{username}}'     => $message->username ?? '',
-            '{{user_id}}'      => (string) $message->userId,
-            '{{date}}'         => $message->sentAt->format('d.m.Y'),
-            '{{time}}'         => $message->sentAt->format('H:i'),
+            '{{first_name}}' => $message->firstName ?? '',
+            '{{username}}' => $message->username ?? '',
+            '{{user_id}}' => (string) $message->userId,
+            '{{date}}' => $message->sentAt->format('d.m.Y'),
+            '{{time}}' => $message->sentAt->format('H:i'),
             '{{text_preview}}' => mb_substr($text, 0, 80),
-            '{{text}}'         => $text,
-            '{{chat_type}}'    => $message->chatType,
+            '{{text}}' => $text,
+            '{{chat_type}}' => $message->chatType,
         ];
 
         return str_replace(array_keys($vars), array_values($vars), $template);

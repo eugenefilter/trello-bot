@@ -3,7 +3,6 @@
 namespace App\Filament\Admin\Resources\TelegramMessages\Pages;
 
 use App\Filament\Admin\Resources\TelegramMessages\TelegramMessageResource;
-
 use Filament\Resources\Pages\ListRecords;
 
 class ListTelegramMessages extends ListRecords

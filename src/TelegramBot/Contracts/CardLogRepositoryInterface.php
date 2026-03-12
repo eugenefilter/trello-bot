@@ -16,7 +16,7 @@ interface CardLogRepositoryInterface
      * Записывает успешное создание карточки.
      */
     public function logSuccess(
-        int    $telegramMessageId,
+        int $telegramMessageId,
         string $listId,
         string $cardId,
         string $cardUrl,
@@ -26,7 +26,7 @@ interface CardLogRepositoryInterface
      * Записывает неудачную попытку создания карточки.
      */
     public function logError(
-        int    $telegramMessageId,
+        int $telegramMessageId,
         string $listId,
         string $errorMessage,
     ): void;

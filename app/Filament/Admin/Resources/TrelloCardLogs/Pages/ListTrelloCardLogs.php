@@ -3,7 +3,6 @@
 namespace App\Filament\Admin\Resources\TrelloCardLogs\Pages;
 
 use App\Filament\Admin\Resources\TrelloCardLogs\TrelloCardLogResource;
-
 use Filament\Resources\Pages\ListRecords;
 
 class ListTrelloCardLogs extends ListRecords

@@ -27,7 +27,9 @@ use Tests\TestCase;
 class TrelloCardCreatorTest extends TestCase
 {
     private MockInterface $adapter;
+
     private MockInterface $cardLog;
+
     private TrelloCardCreator $creator;
 
     protected function setUp(): void
@@ -176,32 +178,32 @@ class TrelloCardCreatorTest extends TestCase
     {
         return new TelegramMessageDTO(
             messageType: 'text',
-            text:        'Hello world',
-            caption:     null,
-            photos:      [],
-            documents:   [],
-            userId:      111111,
-            chatId:      '222222',
-            chatType:    'private',
-            command:     null,
-            username:    'testuser',
-            firstName:   'Test',
-            sentAt:      new \DateTimeImmutable('2024-01-01 12:00:00'),
+            text: 'Hello world',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'private',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
         );
     }
 
     private function routingDTO(
-        string $titleTemplate       = 'Test: Hello world',
+        string $titleTemplate = 'Test: Hello world',
         string $descriptionTemplate = 'Описание из шаблона',
-        array  $memberIds           = [],
-        array  $labelIds            = [],
+        array $memberIds = [],
+        array $labelIds = [],
     ): RoutingResultDTO {
         return new RoutingResultDTO(
-            listId:                  'list-123',
-            listName:                'Test List',
-            memberIds:               $memberIds,
-            labelIds:                $labelIds,
-            cardTitleTemplate:       $titleTemplate,
+            listId: 'list-123',
+            listName: 'Test List',
+            memberIds: $memberIds,
+            labelIds: $labelIds,
+            cardTitleTemplate: $titleTemplate,
             cardDescriptionTemplate: $descriptionTemplate,
         );
     }

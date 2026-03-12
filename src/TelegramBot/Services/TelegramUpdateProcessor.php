@@ -47,6 +47,7 @@ class TelegramUpdateProcessor
 
         if ($dto === null) {
             $this->repository->markProcessed($telegramMessageId);
+
             return;
         }
 
@@ -54,15 +55,16 @@ class TelegramUpdateProcessor
 
         if ($routingResult === null) {
             $this->repository->markProcessed($telegramMessageId);
+
             return;
         }
 
         $rendered = new RoutingResultDTO(
-            listId:                  $routingResult->listId,
-            listName:                $routingResult->listName,
-            memberIds:               $routingResult->memberIds,
-            labelIds:                $routingResult->labelIds,
-            cardTitleTemplate:       $this->renderer->render($routingResult->cardTitleTemplate, $dto),
+            listId: $routingResult->listId,
+            listName: $routingResult->listName,
+            memberIds: $routingResult->memberIds,
+            labelIds: $routingResult->labelIds,
+            cardTitleTemplate: $this->renderer->render($routingResult->cardTitleTemplate, $dto),
             cardDescriptionTemplate: $this->renderer->render($routingResult->cardDescriptionTemplate, $dto),
         );
 

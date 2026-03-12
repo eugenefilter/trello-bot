@@ -2,7 +2,6 @@
 
 namespace App\Filament\Admin\Resources\TrelloLabels\Tables;
 
-use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;

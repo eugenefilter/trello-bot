@@ -6,10 +6,9 @@ use App\Models\TrelloLabel;
 use App\Models\TrelloList;
 use App\Models\TrelloMember;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -48,8 +47,8 @@ class RoutingRuleForm
                         Select::make('chat_type')
                             ->label('Тип чата')
                             ->options([
-                                'private'    => 'Личный (private)',
-                                'group'      => 'Группа (group)',
+                                'private' => 'Личный (private)',
+                                'group' => 'Группа (group)',
                                 'supergroup' => 'Супергруппа (supergroup)',
                             ])
                             ->placeholder('Любой тип')

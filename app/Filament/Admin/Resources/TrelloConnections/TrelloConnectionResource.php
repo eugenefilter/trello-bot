@@ -50,9 +50,9 @@ class TrelloConnectionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => ListTrelloConnections::route('/'),
+            'index' => ListTrelloConnections::route('/'),
             'create' => CreateTrelloConnection::route('/create'),
-            'edit'   => EditTrelloConnection::route('/{record}/edit'),
+            'edit' => EditTrelloConnection::route('/{record}/edit'),
         ];
     }
 }

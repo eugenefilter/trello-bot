@@ -3,7 +3,6 @@
 namespace App\Filament\Admin\Resources\TrelloLabels\Pages;
 
 use App\Filament\Admin\Resources\TrelloLabels\TrelloLabelResource;
-
 use Filament\Resources\Pages\ListRecords;
 
 class ListTrelloLabels extends ListRecords

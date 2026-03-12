@@ -48,7 +48,7 @@ class TelegramMessageResource extends Resource
     {
         return [
             'index' => ListTelegramMessages::route('/'),
-            'view'  => ViewTelegramMessage::route('/{record}'),
+            'view' => ViewTelegramMessage::route('/{record}'),
         ];
     }
 }

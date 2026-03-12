@@ -20,8 +20,8 @@ class TrelloCardLogsTable
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
                         'success' => 'success',
-                        'error'   => 'danger',
-                        default   => 'gray',
+                        'error' => 'danger',
+                        default => 'gray',
                     }),
                 TextColumn::make('telegramMessage.text')
                     ->label('Сообщение')
@@ -52,7 +52,7 @@ class TrelloCardLogsTable
                     ->label('Статус')
                     ->options([
                         'success' => 'Успех',
-                        'error'   => 'Ошибка',
+                        'error' => 'Ошибка',
                     ]),
             ])
             ->recordActions([])

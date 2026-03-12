@@ -43,18 +43,18 @@ class TelegramUpdateProcessorTest extends TestCase
     {
         parent::setUp();
 
-        $this->repository  = Mockery::mock(TelegramMessageRepositoryInterface::class);
-        $this->parser      = Mockery::mock(UpdateParserInterface::class);
-        $this->routing     = Mockery::mock(RoutingEngineInterface::class);
+        $this->repository = Mockery::mock(TelegramMessageRepositoryInterface::class);
+        $this->parser = Mockery::mock(UpdateParserInterface::class);
+        $this->routing = Mockery::mock(RoutingEngineInterface::class);
         $this->cardCreator = Mockery::mock(TrelloCardCreator::class);
-        $this->telegram    = Mockery::mock(TelegramAdapterInterface::class);
+        $this->telegram = Mockery::mock(TelegramAdapterInterface::class);
 
         $this->processor = new TelegramUpdateProcessor(
             $this->repository,
             $this->parser,
             $this->routing,
             $this->cardCreator,
-            new CardTemplateRenderer(),
+            new CardTemplateRenderer,
             $this->telegram,
         );
     }
@@ -73,7 +73,7 @@ class TelegramUpdateProcessorTest extends TestCase
      */
     public function test_happy_path_creates_card_and_marks_processed(): void
     {
-        $dto     = $this->makeMessageDTO();
+        $dto = $this->makeMessageDTO();
         $routing = $this->makeRoutingResult();
 
         $this->repository->shouldReceive('getPayload')->once()->with(1)->andReturn(['update_id' => 1]);

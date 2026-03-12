@@ -22,16 +22,16 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
         $model = TelegramMessage::query()->firstOrCreate(
             ['update_id' => $payload['update_id']],
             [
-                'message_id'   => $message['message_id'] ?? null,
-                'chat_id'      => $message['chat']['id'] ?? 0,
-                'chat_type'    => $message['chat']['type'] ?? 'unknown',
-                'user_id'      => $message['from']['id'] ?? null,
-                'username'     => $message['from']['username'] ?? null,
-                'first_name'   => $message['from']['first_name'] ?? null,
-                'text'         => $message['text'] ?? null,
-                'caption'      => $message['caption'] ?? null,
+                'message_id' => $message['message_id'] ?? null,
+                'chat_id' => $message['chat']['id'] ?? 0,
+                'chat_type' => $message['chat']['type'] ?? 'unknown',
+                'user_id' => $message['from']['id'] ?? null,
+                'username' => $message['from']['username'] ?? null,
+                'first_name' => $message['from']['first_name'] ?? null,
+                'text' => $message['text'] ?? null,
+                'caption' => $message['caption'] ?? null,
                 'payload_json' => $payload,
-                'received_at'  => now(),
+                'received_at' => now(),
             ],
         );
 

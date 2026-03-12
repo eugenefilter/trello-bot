@@ -20,7 +20,7 @@ class TelegramUpdateParserTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->parser = new TelegramUpdateParser();
+        $this->parser = new TelegramUpdateParser;
     }
 
     /**
@@ -147,7 +147,7 @@ class TelegramUpdateParserTest extends TestCase
     public function test_parses_command_after_mention(): void
     {
         $text = '@itsell_trello_bot /bug Не работает вход';
-        $dto  = $this->parser->parse($this->mentionCommandUpdate($text));
+        $dto = $this->parser->parse($this->mentionCommandUpdate($text));
 
         $this->assertSame('command', $dto->messageType);
         $this->assertSame('/bug', $dto->command);

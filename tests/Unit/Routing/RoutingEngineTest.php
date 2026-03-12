@@ -22,6 +22,7 @@ use TelegramBot\Routing\RoutingEngine;
 class RoutingEngineTest extends TestCase
 {
     private MockInterface $repository;
+
     private RoutingEngine $engine;
 
     protected function setUp(): void
@@ -29,7 +30,7 @@ class RoutingEngineTest extends TestCase
         parent::setUp();
 
         $this->repository = Mockery::mock(RoutingRuleRepositoryInterface::class);
-        $this->engine     = new RoutingEngine($this->repository);
+        $this->engine = new RoutingEngine($this->repository);
     }
 
     protected function tearDown(): void
@@ -43,41 +44,41 @@ class RoutingEngineTest extends TestCase
     // -------------------------------------------------------------------------
 
     private function makeMessage(
-        string  $chatId   = '100',
-        string  $chatType = 'private',
-        ?string $command  = null,
-        array   $photos   = [],
+        string $chatId = '100',
+        string $chatType = 'private',
+        ?string $command = null,
+        array $photos = [],
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: $command !== null ? 'command' : ($photos ? 'photo' : 'text'),
-            text:        null,
-            caption:     null,
-            photos:      $photos,
-            documents:   [],
-            userId:      42,
-            chatId:      $chatId,
-            chatType:    $chatType,
-            command:     $command,
-            username:    'testuser',
-            firstName:   'Test',
-            sentAt:      new DateTimeImmutable(),
+            text: null,
+            caption: null,
+            photos: $photos,
+            documents: [],
+            userId: 42,
+            chatId: $chatId,
+            chatType: $chatType,
+            command: $command,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
         );
     }
 
     private function makeRule(array $overrides = []): RoutingRuleData
     {
         return new RoutingRuleData(
-            chatId:                  $overrides['chatId']   ?? null,
-            chatType:                $overrides['chatType'] ?? null,
-            command:                 $overrides['command']  ?? null,
-            hasPhoto:                $overrides['hasPhoto'] ?? null,
-            trelloListId:            $overrides['trelloListId'] ?? 'list_default',
-            listName:                $overrides['listName'] ?? 'Default List',
-            labelIds:                $overrides['labelIds']  ?? [],
-            memberIds:               $overrides['memberIds'] ?? [],
-            cardTitleTemplate:       $overrides['cardTitleTemplate'] ?? '{{first_name}}: {{text_preview}}',
+            chatId: $overrides['chatId'] ?? null,
+            chatType: $overrides['chatType'] ?? null,
+            command: $overrides['command'] ?? null,
+            hasPhoto: $overrides['hasPhoto'] ?? null,
+            trelloListId: $overrides['trelloListId'] ?? 'list_default',
+            listName: $overrides['listName'] ?? 'Default List',
+            labelIds: $overrides['labelIds'] ?? [],
+            memberIds: $overrides['memberIds'] ?? [],
+            cardTitleTemplate: $overrides['cardTitleTemplate'] ?? '{{first_name}}: {{text_preview}}',
             cardDescriptionTemplate: $overrides['cardDescriptionTemplate'] ?? '{{text}}',
-            priority:                $overrides['priority'] ?? 0,
+            priority: $overrides['priority'] ?? 0,
         );
     }
 
@@ -152,7 +153,7 @@ class RoutingEngineTest extends TestCase
      */
     public function test_highest_priority_rule_wins(): void
     {
-        $lowPriority  = $this->makeRule(['priority' => 0, 'trelloListId' => 'list_low']);
+        $lowPriority = $this->makeRule(['priority' => 0, 'trelloListId' => 'list_low']);
         $highPriority = $this->makeRule(['priority' => 10, 'trelloListId' => 'list_high']);
 
         // repository отдаёт уже в порядке убывания (как делает Eloquent-реализация)
@@ -203,10 +204,10 @@ class RoutingEngineTest extends TestCase
     public function test_result_dto_is_populated_from_matched_rule(): void
     {
         $rule = $this->makeRule([
-            'trelloListId'            => 'list_abc',
-            'labelIds'                => ['lbl1', 'lbl2'],
-            'memberIds'               => ['mbr1'],
-            'cardTitleTemplate'       => '{{first_name}}: {{text_preview}}',
+            'trelloListId' => 'list_abc',
+            'labelIds' => ['lbl1', 'lbl2'],
+            'memberIds' => ['mbr1'],
+            'cardTitleTemplate' => '{{first_name}}: {{text_preview}}',
             'cardDescriptionTemplate' => '{{text}}',
         ]);
 

@@ -22,7 +22,7 @@ class CardTemplateRendererTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->renderer = new CardTemplateRenderer();
+        $this->renderer = new CardTemplateRenderer;
     }
 
     /**
@@ -81,7 +81,7 @@ class CardTemplateRendererTest extends TestCase
     public function test_replaces_text_preview_with_first_80_chars(): void
     {
         $longText = str_repeat('А', 100);
-        $dto      = $this->makeDTO(text: $longText);
+        $dto = $this->makeDTO(text: $longText);
 
         $result = $this->renderer->render('{{text_preview}}', $dto);
 
@@ -146,7 +146,7 @@ class CardTemplateRendererTest extends TestCase
      */
     public function test_null_first_name_renders_as_empty_string(): void
     {
-        $dto    = $this->makeDTO(firstName: null);
+        $dto = $this->makeDTO(firstName: null);
         $result = $this->renderer->render('{{first_name}}', $dto);
 
         $this->assertSame('', $result);
@@ -157,7 +157,7 @@ class CardTemplateRendererTest extends TestCase
      */
     public function test_null_text_renders_as_empty_string(): void
     {
-        $dto    = $this->makeDTO(text: null);
+        $dto = $this->makeDTO(text: null);
         $result = $this->renderer->render('{{text}} / {{text_preview}}', $dto);
 
         $this->assertSame(' / ', $result);
@@ -199,24 +199,24 @@ class CardTemplateRendererTest extends TestCase
     // --- Fixtures ---
 
     private function makeDTO(
-        ?string $text      = 'Привет, мир!',
-        ?string $caption   = null,
+        ?string $text = 'Привет, мир!',
+        ?string $caption = null,
         ?string $firstName = 'Иван',
-        ?string $command   = null,
+        ?string $command = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'text',
-            text:        $text,
-            caption:     $caption,
-            photos:      [],
-            documents:   [],
-            userId:      123456,
-            chatId:      '999',
-            chatType:    'private',
-            command:     $command,
-            username:    'ivanov',
-            firstName:   $firstName,
-            sentAt:      new DateTimeImmutable('2024-06-15 14:30:00'),
+            text: $text,
+            caption: $caption,
+            photos: [],
+            documents: [],
+            userId: 123456,
+            chatId: '999',
+            chatType: 'private',
+            command: $command,
+            username: 'ivanov',
+            firstName: $firstName,
+            sentAt: new DateTimeImmutable('2024-06-15 14:30:00'),
         );
     }
 }
