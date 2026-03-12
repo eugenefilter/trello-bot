@@ -120,6 +120,7 @@ class RoutingRuleForm
                             ->label('Описание карточки')
                             ->required()
                             ->rows(6)
+                            ->helperText('Переменные: {{first_name}}, {{username}}, {{user_id}}, {{text}}, {{text_preview}}, {{date}}, {{time}}, {{chat_type}}')
                             ->columnSpanFull(),
                     ]),
             ]);

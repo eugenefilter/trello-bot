@@ -58,12 +58,14 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // Trello API клиент — credentials берутся из config/services.php
+        // Trello API клиент — credentials берутся из первого активного подключения в БД
         $this->app->bind(TrelloAdapterInterface::class, function ($app) {
+            $connection = \App\Models\TrelloConnection::where('is_active', true)->first();
+
             return new TrelloAdapter(
                 http: $app->make(HttpFactory::class),
-                apiKey: config('services.trello.api_key', ''),
-                apiToken: config('services.trello.api_token', ''),
+                apiKey: $connection?->api_key ?? '',
+                apiToken: $connection?->api_token ?? '',
             );
         });
     }
