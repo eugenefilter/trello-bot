@@ -58,8 +58,8 @@ class TrelloCardCreatorTest extends TestCase
             })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
 
-        $this->adapter->shouldReceive('addMembersToCard')->once();
-        $this->adapter->shouldReceive('addLabelsToCard')->once();
+        $this->adapter->shouldNotReceive('addMembersToCard');
+        $this->adapter->shouldNotReceive('addLabelsToCard');
         $this->fileDownloader->shouldNotReceive('download');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
@@ -83,8 +83,8 @@ class TrelloCardCreatorTest extends TestCase
             })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
 
-        $this->adapter->shouldReceive('addMembersToCard')->once();
-        $this->adapter->shouldReceive('addLabelsToCard')->once();
+        $this->adapter->shouldNotReceive('addMembersToCard');
+        $this->adapter->shouldNotReceive('addLabelsToCard');
         $this->fileDownloader->shouldNotReceive('download');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
@@ -96,19 +96,20 @@ class TrelloCardCreatorTest extends TestCase
     }
 
     /**
-     * После создания карточки вызывается addMembersToCard с ID из routing rule.
+     * memberIds передаются в createCard через DTO (не отдельным вызовом addMembersToCard).
      */
-    public function test_adds_members_after_card_creation(): void
+    public function test_passes_members_in_create_card_dto(): void
     {
-        $this->adapter->shouldReceive('createCard')
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->withArgs(function (TrelloCardDTO $dto) {
+                return $dto->memberIds === ['member-abc'];
+            })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
 
-        $this->adapter
-            ->shouldReceive('addMembersToCard')
-            ->once()
-            ->with('card-1', ['member-abc']);
-
-        $this->adapter->shouldReceive('addLabelsToCard')->once();
+        $this->adapter->shouldNotReceive('addMembersToCard');
+        $this->adapter->shouldNotReceive('addLabelsToCard');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
         $this->creator->create(
@@ -119,20 +120,20 @@ class TrelloCardCreatorTest extends TestCase
     }
 
     /**
-     * После создания карточки вызывается addLabelsToCard с ID из routing rule.
+     * labelIds передаются в createCard через DTO (не отдельным вызовом addLabelsToCard).
      */
-    public function test_adds_labels_after_card_creation(): void
+    public function test_passes_labels_in_create_card_dto(): void
     {
-        $this->adapter->shouldReceive('createCard')
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->withArgs(function (TrelloCardDTO $dto) {
+                return $dto->labelIds === ['label-xyz'];
+            })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
 
-        $this->adapter->shouldReceive('addMembersToCard')->once();
-
-        $this->adapter
-            ->shouldReceive('addLabelsToCard')
-            ->once()
-            ->with('card-1', ['label-xyz']);
-
+        $this->adapter->shouldNotReceive('addMembersToCard');
+        $this->adapter->shouldNotReceive('addLabelsToCard');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
         $this->creator->create(
@@ -149,8 +150,6 @@ class TrelloCardCreatorTest extends TestCase
     {
         $this->adapter->shouldReceive('createCard')
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
-        $this->adapter->shouldReceive('addMembersToCard')->once();
-        $this->adapter->shouldReceive('addLabelsToCard')->once();
 
         $this->cardLog
             ->shouldReceive('logSuccess')

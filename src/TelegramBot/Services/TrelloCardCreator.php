@@ -57,10 +57,6 @@ class TrelloCardCreator
                 labelIds: $routing->labelIds,
             ));
 
-            // Назначаем участников и метки отдельными запросами после создания карточки
-            $this->trello->addMembersToCard($result->id, $routing->memberIds);
-            $this->trello->addLabelsToCard($result->id, $routing->labelIds);
-
             // Прикрепляем фото к карточке
             foreach ($message->photos as $fileId) {
                 $file = $this->fileDownloader->download($fileId, $telegramMessageId);
