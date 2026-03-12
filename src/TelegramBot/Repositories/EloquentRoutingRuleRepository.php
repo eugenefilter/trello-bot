@@ -26,17 +26,17 @@ class EloquentRoutingRuleRepository implements RoutingRuleRepositoryInterface
             ->with('targetList')                // eager load — нужен trello_list_id из связи
             ->orderByDesc('priority')
             ->get()
-            ->map(fn(RoutingRule $rule) => new RoutingRuleData(
-                chatId:                  $rule->telegram_chat_id,
-                chatType:                $rule->chat_type,
-                command:                 $rule->command,
-                hasPhoto:                $rule->has_photo,
-                trelloListId:            $rule->targetList->trello_list_id,
-                labelIds:                $rule->label_ids ?? [],
-                memberIds:               $rule->member_ids ?? [],
-                cardTitleTemplate:       $rule->card_title_template,
+            ->map(fn (RoutingRule $rule) => new RoutingRuleData(
+                chatId: $rule->telegram_chat_id,
+                chatType: $rule->chat_type,
+                command: $rule->command,
+                hasPhoto: $rule->has_photo,
+                trelloListId: $rule->targetList->trello_list_id,
+                labelIds: $rule->label_ids ?? [],
+                memberIds: $rule->member_ids ?? [],
+                cardTitleTemplate: $rule->card_title_template,
                 cardDescriptionTemplate: $rule->card_description_template,
-                priority:                $rule->priority,
+                priority: $rule->priority,
             ))
             ->all();
     }

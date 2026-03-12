@@ -36,10 +36,10 @@ class RoutingEngine implements RoutingEngineInterface
         foreach ($this->repository->getActiveRules() as $rule) {
             if ($this->matches($rule, $message)) {
                 return new RoutingResultDTO(
-                    listId:                  $rule->trelloListId,
-                    memberIds:               $rule->memberIds,
-                    labelIds:                $rule->labelIds,
-                    cardTitleTemplate:       $rule->cardTitleTemplate,
+                    listId: $rule->trelloListId,
+                    memberIds: $rule->memberIds,
+                    labelIds: $rule->labelIds,
+                    cardTitleTemplate: $rule->cardTitleTemplate,
                     cardDescriptionTemplate: $rule->cardDescriptionTemplate,
                 );
             }

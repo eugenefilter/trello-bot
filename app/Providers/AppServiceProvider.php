@@ -10,10 +10,12 @@ use TelegramBot\Adapters\TrelloAdapter;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
+use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\Parsers\TelegramUpdateParser;
 use TelegramBot\Repositories\EloquentRoutingRuleRepository;
+use TelegramBot\Repositories\EloquentTelegramMessageRepository;
 use TelegramBot\Repositories\TrelloCardLogRepository;
 use TelegramBot\Routing\RoutingEngine;
 
@@ -29,6 +31,9 @@ class AppServiceProvider extends ServiceProvider
         // Парсер входящих Telegram update — не имеет зависимостей
         $this->app->bind(UpdateParserInterface::class, TelegramUpdateParser::class);
 
+        // Репозиторий входящих Telegram update
+        $this->app->bind(TelegramMessageRepositoryInterface::class, EloquentTelegramMessageRepository::class);
+
         // Репозитории
         $this->app->bind(CardLogRepositoryInterface::class, TrelloCardLogRepository::class);
         $this->app->bind(RoutingRuleRepositoryInterface::class, EloquentRoutingRuleRepository::class);
@@ -39,8 +44,8 @@ class AppServiceProvider extends ServiceProvider
         // Trello API клиент — credentials берутся из config/services.php
         $this->app->bind(TrelloAdapterInterface::class, function ($app) {
             return new TrelloAdapter(
-                http:     $app->make(HttpFactory::class),
-                apiKey:   config('services.trello.api_key', ''),
+                http: $app->make(HttpFactory::class),
+                apiKey: config('services.trello.api_key', ''),
                 apiToken: config('services.trello.api_token', ''),
             );
         });
