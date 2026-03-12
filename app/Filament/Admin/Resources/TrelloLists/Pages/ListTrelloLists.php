@@ -3,7 +3,7 @@
 namespace App\Filament\Admin\Resources\TrelloLists\Pages;
 
 use App\Filament\Admin\Resources\TrelloLists\TrelloListResource;
-use Filament\Actions\CreateAction;
+
 use Filament\Resources\Pages\ListRecords;
 
 class ListTrelloLists extends ListRecords
@@ -13,7 +13,7 @@ class ListTrelloLists extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+
         ];
     }
 }

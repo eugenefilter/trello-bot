@@ -49,7 +49,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Telegram Bot API клиент
         $this->app->bind(TelegramAdapterInterface::class, function () {
-            $token = config('telegram.bot_token', '');
+            $token = config('telegram.bots.mybot.token', '');
 
             return new TelegramAdapter(
                 telegram:   new Api($token),

@@ -3,6 +3,8 @@
 namespace App\Filament\Admin\Resources\TelegramMessages;
 
 use App\Filament\Admin\Resources\TelegramMessages\Pages\ListTelegramMessages;
+use App\Filament\Admin\Resources\TelegramMessages\Pages\ViewTelegramMessage;
+use App\Filament\Admin\Resources\TelegramMessages\Schemas\TelegramMessageForm;
 use App\Filament\Admin\Resources\TelegramMessages\Tables\TelegramMessagesTable;
 use App\Models\TelegramMessage;
 use BackedEnum;
@@ -29,7 +31,7 @@ class TelegramMessageResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema->components([]);
+        return TelegramMessageForm::configure($schema);
     }
 
     public static function table(Table $table): Table
@@ -46,6 +48,7 @@ class TelegramMessageResource extends Resource
     {
         return [
             'index' => ListTelegramMessages::route('/'),
+            'view'  => ViewTelegramMessage::route('/{record}'),
         ];
     }
 }

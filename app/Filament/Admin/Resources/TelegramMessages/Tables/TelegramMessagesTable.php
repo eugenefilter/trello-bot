@@ -2,6 +2,7 @@
 
 namespace App\Filament\Admin\Resources\TelegramMessages\Tables;
 
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
@@ -48,7 +49,9 @@ class TelegramMessagesTable
                     ->nullable()
                     ->attribute('processed_at'),
             ])
-            ->recordActions([])
+            ->recordActions([
+                ViewAction::make(),
+            ])
             ->toolbarActions([]);
     }
 }
