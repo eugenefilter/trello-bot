@@ -177,6 +177,88 @@ class TrelloCardCreatorTest extends TestCase
         $this->creator->create($this->messageDTO(), $this->routingDTO(), telegramMessageId: 1);
     }
 
+    /**
+     * Фото из сообщения прикрепляется к созданной карточке.
+     */
+    public function test_attaches_photo_to_card_on_creation(): void
+    {
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->once()
+            ->with('photo-file-id', 1)
+            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+
+        $this->adapter
+            ->shouldReceive('attachFile')
+            ->once()
+            ->with('card-1', '/tmp/photo.jpg', 'image/jpeg');
+
+        $this->cardLog->shouldReceive('logSuccess')->once();
+
+        $message = new TelegramMessageDTO(
+            messageType: 'text_photo',
+            text: null,
+            caption: '/bug test',
+            photos: ['photo-file-id'],
+            documents: [],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'private',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
+        );
+
+        $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
+    }
+
+    /**
+     * Документ из сообщения прикрепляется к созданной карточке.
+     */
+    public function test_attaches_document_to_card_on_creation(): void
+    {
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->once()
+            ->with('doc-file-id', 1)
+            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/file.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+
+        $this->adapter
+            ->shouldReceive('attachFile')
+            ->once()
+            ->with('card-1', '/tmp/file.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->cardLog->shouldReceive('logSuccess')->once();
+
+        $message = new TelegramMessageDTO(
+            messageType: 'command',
+            text: null,
+            caption: '/bug test',
+            photos: [],
+            documents: ['doc-file-id'],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'private',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
+        );
+
+        $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
+    }
+
     // --- Fixtures ---
 
     private function messageDTO(): TelegramMessageDTO

@@ -143,5 +143,11 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
             $largest = end($photoSizes);
             $this->fileRepository->createForMessage($messageId, $largest, 'photo');
         }
+
+        $document = $message['document'] ?? null;
+
+        if ($document !== null) {
+            $this->fileRepository->createForMessage($messageId, $document, 'document');
+        }
     }
 }
