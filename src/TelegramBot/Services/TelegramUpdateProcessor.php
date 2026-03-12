@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TelegramBot\Services;
 
+use Illuminate\Support\Facades\Log;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -11,6 +12,7 @@ use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
+use Throwable;
 
 /**
  * Оркестрирует обработку одного Telegram update.
@@ -110,8 +112,17 @@ class TelegramUpdateProcessor
 
         foreach ($parts as $part) {
             foreach ($part['file_ids'] as $fileId) {
-                $file = $this->fileDownloader->download($fileId, $part['id']);
-                $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+                try {
+                    $file = $this->fileDownloader->download($fileId, $part['id']);
+                    $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+                } catch (Throwable $e) {
+                    Log::warning('Failed to attach skipped group file to Trello card', [
+                        'card_id' => $cardId,
+                        'file_id' => $fileId,
+                        'message_id' => $part['id'],
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             $this->repository->markProcessed($part['id']);
@@ -121,8 +132,17 @@ class TelegramUpdateProcessor
     private function attachFilesToCard(TelegramMessageDTO $dto, string $cardId, int $telegramMessageId): void
     {
         foreach ([...$dto->photos, ...$dto->documents] as $fileId) {
-            $file = $this->fileDownloader->download($fileId, $telegramMessageId);
-            $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+            try {
+                $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+            } catch (Throwable $e) {
+                Log::warning('Failed to attach catching-up file to Trello card', [
+                    'card_id' => $cardId,
+                    'file_id' => $fileId,
+                    'message_id' => $telegramMessageId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 

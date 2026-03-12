@@ -10,6 +10,7 @@ use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\DTOs\TrelloCardDTO;
+use Illuminate\Support\Facades\Log;
 use TelegramBot\Exceptions\TrelloAuthException;
 use TelegramBot\Exceptions\TrelloConnectionException;
 use TelegramBot\Exceptions\TrelloValidationException;
@@ -59,8 +60,16 @@ class TrelloCardCreator
 
             // Прикрепляем фото и документы к карточке
             foreach ([...$message->photos, ...$message->documents] as $fileId) {
-                $file = $this->fileDownloader->download($fileId, $telegramMessageId);
-                $this->trello->attachFile($result->id, $file->localPath, $file->mimeType);
+                try {
+                    $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                    $this->trello->attachFile($result->id, $file->localPath, $file->mimeType);
+                } catch (Throwable $e) {
+                    Log::warning('Failed to attach file to Trello card', [
+                        'card_id' => $result->id,
+                        'file_id' => $fileId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             $this->cardLog->logSuccess(

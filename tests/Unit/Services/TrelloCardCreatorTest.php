@@ -259,6 +259,92 @@ class TrelloCardCreatorTest extends TestCase
         $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
     }
 
+    /**
+     * Ошибка при загрузке одного файла не роняет создание карточки —
+     * карточка всё равно создаётся и помечается успешной.
+     */
+    public function test_file_download_error_does_not_abort_card_creation(): void
+    {
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->once()
+            ->andThrow(new \RuntimeException('Telegram file not found'));
+
+        // attachFile не должен вызываться, если download упал
+        $this->adapter->shouldNotReceive('attachFile');
+
+        // logSuccess всё равно должен вызваться — карточка создана
+        $this->cardLog->shouldReceive('logSuccess')->once();
+
+        $message = new TelegramMessageDTO(
+            messageType: 'text_photo',
+            text: null,
+            caption: '/bug test',
+            photos: ['photo-file-id'],
+            documents: [],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'private',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
+        );
+
+        // Исключение НЕ пробрасывается
+        $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
+    }
+
+    /**
+     * При ошибке первого файла второй всё равно прикрепляется.
+     */
+    public function test_file_error_on_first_does_not_skip_second(): void
+    {
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->with('bad-file-id', 1)
+            ->andThrow(new \RuntimeException('not found'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->with('good-file-id', 1)
+            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+
+        $this->adapter
+            ->shouldReceive('attachFile')
+            ->once()
+            ->with('card-1', '/tmp/photo.jpg', 'image/jpeg');
+
+        $this->cardLog->shouldReceive('logSuccess')->once();
+
+        $message = new TelegramMessageDTO(
+            messageType: 'text_photo',
+            text: null,
+            caption: '/bug test',
+            photos: ['bad-file-id', 'good-file-id'],
+            documents: [],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'private',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
+        );
+
+        $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
+    }
+
     // --- Fixtures ---
 
     private function messageDTO(): TelegramMessageDTO
