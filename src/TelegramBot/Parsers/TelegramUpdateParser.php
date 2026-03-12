@@ -32,8 +32,12 @@ class TelegramUpdateParser implements UpdateParserInterface
         $caption = $message['caption'] ?? null;
         $photos = $this->extractPhotos($message);
 
+        // Команда может быть как в text (entities), так и в caption (caption_entities)
+        $command = $this->extractCommand($text, $message['entities'] ?? [])
+            ?? $this->extractCommand($caption, $message['caption_entities'] ?? []);
+
         return new TelegramMessageDTO(
-            messageType: $this->resolveMessageType($text, $caption, $photos),
+            messageType: $this->resolveMessageType($text, $caption, $photos, $command),
             text: $text,
             caption: $caption,
             photos: $photos,
@@ -41,7 +45,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             userId: $message['from']['id'],
             chatId: (string) $message['chat']['id'],
             chatType: $message['chat']['type'],
-            command: $this->extractCommand($text),
+            command: $command,
             username: $message['from']['username'] ?? null,
             firstName: $message['from']['first_name'] ?? null,
             sentAt: new \DateTimeImmutable('@'.$message['date']),
@@ -53,7 +57,7 @@ class TelegramUpdateParser implements UpdateParserInterface
      *
      * @param  string[]  $photos
      */
-    private function resolveMessageType(?string $text, ?string $caption, array $photos): string
+    private function resolveMessageType(?string $text, ?string $caption, array $photos, ?string $command): string
     {
         if (count($photos) > 0 && $caption !== null) {
             return 'text_photo';
@@ -63,7 +67,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             return 'photo';
         }
 
-        if ($text !== null && str_starts_with($text, '/')) {
+        if ($command !== null) {
             return 'command';
         }
 
@@ -71,17 +75,31 @@ class TelegramUpdateParser implements UpdateParserInterface
     }
 
     /**
-     * Извлекает команду из текста (первое слово, начинающееся с /).
-     * Например "/bug fix login" → "/bug".
+     * Извлекает команду из entities (поддерживает /cmd@botname и @mention /cmd).
+     * Fallback: текст начинается с / — разбираем вручную.
      */
-    private function extractCommand(?string $text): ?string
+    private function extractCommand(?string $text, array $entities): ?string
     {
-        if ($text === null || ! str_starts_with($text, '/')) {
+        if ($text === null) {
             return null;
         }
 
-        // Берём только первое слово — сама команда без аргументов
-        return explode(' ', $text)[0];
+        // Используем entities — Telegram явно помечает bot_command
+        foreach ($entities as $entity) {
+            if ($entity['type'] === 'bot_command') {
+                $raw = mb_substr($text, $entity['offset'], $entity['length']);
+
+                // /bug@botname → /bug
+                return explode('@', $raw)[0];
+            }
+        }
+
+        // Fallback для личных чатов без entities (или старых клиентов)
+        if (str_starts_with($text, '/')) {
+            return explode(' ', $text)[0];
+        }
+
+        return null;
     }
 
     /**

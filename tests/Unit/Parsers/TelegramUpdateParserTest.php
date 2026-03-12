@@ -118,6 +118,41 @@ class TelegramUpdateParserTest extends TestCase
         $this->assertSame('Test', $dto->firstName);
     }
 
+    /**
+     * Фото с caption "/bug текст" → команда извлекается из caption_entities.
+     */
+    public function test_extracts_command_from_photo_caption(): void
+    {
+        $dto = $this->parser->parse($this->photoWithCaptionCommandUpdate('/bug Тест карточки с фото'));
+
+        $this->assertSame('text_photo', $dto->messageType); // фото+caption → text_photo
+        $this->assertSame('/bug', $dto->command);           // команда всё равно извлекается
+        $this->assertSame('/bug Тест карточки с фото', $dto->caption);
+    }
+
+    /**
+     * /bug@botname в группе → команда должна быть /bug (без суффикса @botname).
+     */
+    public function test_strips_botname_suffix_from_command(): void
+    {
+        $dto = $this->parser->parse($this->commandWithEntityUpdate('/bug@itsell_trello_bot fix login'));
+
+        $this->assertSame('command', $dto->messageType);
+        $this->assertSame('/bug', $dto->command);
+    }
+
+    /**
+     * @mention /command в группе → команда извлекается через entities.
+     */
+    public function test_parses_command_after_mention(): void
+    {
+        $text = '@itsell_trello_bot /bug Не работает вход';
+        $dto  = $this->parser->parse($this->mentionCommandUpdate($text));
+
+        $this->assertSame('command', $dto->messageType);
+        $this->assertSame('/bug', $dto->command);
+    }
+
     // --- Fixtures ---
 
     private function textUpdate(string $text, string $chatType = 'private'): array
@@ -130,6 +165,64 @@ class TelegramUpdateParserTest extends TestCase
                 'chat' => ['id' => 222222, 'type' => $chatType],
                 'date' => 1700000000,
                 'text' => $text,
+            ],
+        ];
+    }
+
+    /** Фото с caption-командой */
+    private function photoWithCaptionCommandUpdate(string $caption): array
+    {
+        return [
+            'update_id' => 5,
+            'message' => [
+                'message_id' => 14,
+                'from' => ['id' => 111111, 'username' => 'testuser', 'first_name' => 'Test'],
+                'chat' => ['id' => 222222, 'type' => 'private'],
+                'date' => 1700000000,
+                'caption' => $caption,
+                'caption_entities' => [
+                    ['type' => 'bot_command', 'offset' => 0, 'length' => 4],
+                ],
+                'photo' => [
+                    ['file_id' => 'file_id_large', 'file_unique_id' => 'u1', 'width' => 800, 'height' => 800],
+                ],
+            ],
+        ];
+    }
+
+    /** /bug@botname — entities содержит bot_command с суффиксом */
+    private function commandWithEntityUpdate(string $text): array
+    {
+        return [
+            'update_id' => 3,
+            'message' => [
+                'message_id' => 12,
+                'from' => ['id' => 111111, 'username' => 'testuser', 'first_name' => 'Test'],
+                'chat' => ['id' => -100222222, 'type' => 'supergroup'],
+                'date' => 1700000000,
+                'text' => $text,
+                'entities' => [
+                    ['type' => 'bot_command', 'offset' => 0, 'length' => strlen('/bug@itsell_trello_bot')],
+                ],
+            ],
+        ];
+    }
+
+    /** @mention /command — entities содержат mention + bot_command */
+    private function mentionCommandUpdate(string $text): array
+    {
+        return [
+            'update_id' => 4,
+            'message' => [
+                'message_id' => 13,
+                'from' => ['id' => 111111, 'username' => 'testuser', 'first_name' => 'Test'],
+                'chat' => ['id' => -100222222, 'type' => 'supergroup'],
+                'date' => 1700000000,
+                'text' => $text,
+                'entities' => [
+                    ['type' => 'mention',     'offset' => 0,  'length' => strlen('@itsell_trello_bot')],
+                    ['type' => 'bot_command', 'offset' => 19, 'length' => strlen('/bug')],
+                ],
             ],
         ];
     }

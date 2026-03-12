@@ -175,12 +175,34 @@ class CardTemplateRendererTest extends TestCase
         $this->assertSame('Подпись к фото', $result);
     }
 
+    /**
+     * Команда (/bug) обрезается из {{text}} и {{text_preview}}.
+     */
+    public function test_strips_command_from_text(): void
+    {
+        $dto = $this->makeDTO(text: '/bug Текст задачи', command: '/bug');
+
+        $this->assertSame('Текст задачи', $this->renderer->render('{{text}}', $dto));
+        $this->assertSame('Текст задачи', $this->renderer->render('{{text_preview}}', $dto));
+    }
+
+    /**
+     * Если текст состоит только из команды — {{text}} пустой.
+     */
+    public function test_text_is_empty_when_only_command(): void
+    {
+        $dto = $this->makeDTO(text: '/bug', command: '/bug');
+
+        $this->assertSame('', $this->renderer->render('{{text}}', $dto));
+    }
+
     // --- Fixtures ---
 
     private function makeDTO(
         ?string $text      = 'Привет, мир!',
         ?string $caption   = null,
         ?string $firstName = 'Иван',
+        ?string $command   = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'text',
@@ -191,7 +213,7 @@ class CardTemplateRendererTest extends TestCase
             userId:      123456,
             chatId:      '999',
             chatType:    'private',
-            command:     null,
+            command:     $command,
             username:    'ivanov',
             firstName:   $firstName,
             sentAt:      new DateTimeImmutable('2024-06-15 14:30:00'),

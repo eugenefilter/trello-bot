@@ -41,7 +41,10 @@ TPL;
 
     public function render(string $template, TelegramMessageDTO $message): string
     {
-        $text = $message->text ?? $message->caption ?? '';
+        $raw  = $message->text ?? $message->caption ?? '';
+        $text = ($message->command !== null && str_starts_with($raw, $message->command))
+            ? ltrim(mb_substr($raw, mb_strlen($message->command)))
+            : $raw;
 
         $vars = [
             '{{first_name}}'   => $message->firstName ?? '',

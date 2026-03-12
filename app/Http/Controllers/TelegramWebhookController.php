@@ -21,7 +21,16 @@ final class TelegramWebhookController extends Controller
         TelegramWebhookRequest $request,
         TelegramMessageRepositoryInterface $repository,
     ): JsonResponse {
-        ['id' => $id, 'created' => $created] = $repository->firstOrCreate($request->all());
+        $payload = $request->all();
+
+        // Обрабатываем только обычные сообщения (message).
+        // inline_query, edited_message, channel_post и прочие типы игнорируем —
+        // Telegram ожидает 200, чтобы не повторять запрос.
+        if (! isset($payload['message'])) {
+            return response()->json(['ok' => true]);
+        }
+
+        ['id' => $id, 'created' => $created] = $repository->firstOrCreate($payload);
 
         // Диспатчим Job только для новых update — повторный webhook не создаёт дубль.
         if ($created) {
