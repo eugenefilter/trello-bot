@@ -7,13 +7,15 @@ namespace TelegramBot\Services;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
+use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\RoutingResultDTO;
+use TelegramBot\DTOs\TelegramMessageDTO;
 
 /**
  * Оркестрирует обработку одного Telegram update.
  *
- * Порядок:
+ * Порядок для обычного сообщения:
  *   1. Загружает payload из репозитория
  *   2. Парсит payload → TelegramMessageDTO (null = неподдерживаемый тип)
  *   3. Ищет routing rule → RoutingResultDTO (null = нет подходящего правила)
@@ -21,6 +23,12 @@ use TelegramBot\DTOs\RoutingResultDTO;
  *   5. Создаёт карточку в Trello
  *   6. Отправляет подтверждение пользователю через Telegram
  *   7. Помечает сообщение как обработанное
+ *
+ * Для "догоняющего" update медиагруппы (карточка уже создана):
+ *   1-2. Парсит payload
+ *   3. Находит существующую карточку по media_group_id
+ *   4. Скачивает и прикрепляет файлы к существующей карточке
+ *   5. Помечает сообщение как обработанное (без reply и без новой карточки)
  *
  * При исключении из TrelloCardCreator markProcessed не вызывается —
  * Job повторит обработку согласно политике retry.
@@ -34,6 +42,8 @@ class TelegramUpdateProcessor
         private readonly TrelloCardCreator $cardCreator,
         private readonly CardTemplateRenderer $renderer,
         private readonly TelegramAdapterInterface $telegram,
+        private readonly TrelloAdapterInterface $trello,
+        private readonly TelegramFileDownloader $fileDownloader,
     ) {}
 
     /**
@@ -49,6 +59,17 @@ class TelegramUpdateProcessor
             $this->repository->markSkipped($telegramMessageId, 'Неподдерживаемый тип сообщения');
 
             return;
+        }
+
+        if ($dto->mediaGroupId !== null) {
+            $existingCardId = $this->repository->findCardIdByMediaGroup($dto->mediaGroupId);
+
+            if ($existingCardId !== null) {
+                $this->attachFilesToCard($dto, $existingCardId, $telegramMessageId);
+                $this->repository->markProcessed($telegramMessageId);
+
+                return;
+            }
         }
 
         $routingResult = $this->routing->resolve($dto);
@@ -76,7 +97,33 @@ class TelegramUpdateProcessor
             ['parse_mode' => 'HTML'],
         );
 
+        if ($dto->mediaGroupId !== null) {
+            $this->attachSkippedGroupParts($dto->mediaGroupId, $result->id, $telegramMessageId);
+        }
+
         $this->repository->markProcessed($telegramMessageId);
+    }
+
+    private function attachSkippedGroupParts(string $mediaGroupId, string $cardId, int $excludeMessageId): void
+    {
+        $parts = $this->repository->findSkippedGroupParts($mediaGroupId, $excludeMessageId);
+
+        foreach ($parts as $part) {
+            foreach ($part['file_ids'] as $fileId) {
+                $file = $this->fileDownloader->download($fileId, $part['id']);
+                $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+            }
+
+            $this->repository->markProcessed($part['id']);
+        }
+    }
+
+    private function attachFilesToCard(TelegramMessageDTO $dto, string $cardId, int $telegramMessageId): void
+    {
+        foreach ([...$dto->photos, ...$dto->documents] as $fileId) {
+            $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+            $this->trello->attachFile($cardId, $file->localPath, $file->mimeType);
+        }
     }
 
     private function buildReplyText(string $listName, string $cardUrl): string

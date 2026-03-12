@@ -49,6 +49,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             username: $message['from']['username'] ?? null,
             firstName: $message['from']['first_name'] ?? null,
             sentAt: new \DateTimeImmutable('@'.$message['date']),
+            mediaGroupId: $message['media_group_id'] ?? null,
         );
     }
 

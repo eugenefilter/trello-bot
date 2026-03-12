@@ -38,4 +38,20 @@ interface TelegramMessageRepositoryInterface
      * Помечает сообщение как окончательно упавшее (все retry исчерпаны).
      */
     public function markFailed(int $id, string $reason): void;
+
+    /**
+     * Возвращает trello_card_id для группы медиафайлов, если карточка уже создана.
+     * Используется для прикрепления файлов из "догоняющих" update той же группы.
+     *
+     * @return string|null trello_card_id или null если карточки ещё нет
+     */
+    public function findCardIdByMediaGroup(string $mediaGroupId): ?string;
+
+    /**
+     * Возвращает части медиагруппы со статусом skipped, кроме главного сообщения.
+     * Используется для retroactive-прикрепления файлов к только что созданной карточке.
+     *
+     * @return array<array{id: int, file_ids: string[]}>
+     */
+    public function findSkippedGroupParts(string $mediaGroupId, int $excludeMessageId): array;
 }

@@ -18,6 +18,7 @@ class TelegramMessageDTO
      * @param  array  $documents  Массив file_id документов
      * @param  string  $chatType  Тип чата: private | group | supergroup | channel
      * @param  string|null  $command  Команда бота: /start | /bug | /task | null если не команда
+     * @param  string|null  $mediaGroupId  ID группы медиафайлов (если сообщение часть media group)
      */
     public function __construct(
         public string $messageType,
@@ -32,6 +33,7 @@ class TelegramMessageDTO
         public ?string $username,
         public ?string $firstName,
         public \DateTimeImmutable $sentAt,
+        public ?string $mediaGroupId = null,
     ) {}
 
     /**

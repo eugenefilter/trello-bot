@@ -227,6 +227,23 @@ class TelegramUpdateParserTest extends TestCase
         ];
     }
 
+    public function test_extracts_media_group_id_when_present(): void
+    {
+        $update = $this->photoUpdate();
+        $update['message']['media_group_id'] = 'group-xyz-999';
+
+        $dto = $this->parser->parse($update);
+
+        $this->assertSame('group-xyz-999', $dto->mediaGroupId);
+    }
+
+    public function test_media_group_id_is_null_for_regular_message(): void
+    {
+        $dto = $this->parser->parse($this->textUpdate('Hello'));
+
+        $this->assertNull($dto->mediaGroupId);
+    }
+
     private function photoUpdate(?string $caption = null): array
     {
         return [

@@ -21,6 +21,7 @@ class TelegramMessage extends Model
 {
     protected $fillable = [
         'update_id',          // уникальный ID update от Telegram, используется для idempotency
+        'media_group_id',     // ID группы медиафайлов (если сообщение часть media group)
         'message_id',
         'chat_id',
         'chat_type',          // private | group | supergroup | channel

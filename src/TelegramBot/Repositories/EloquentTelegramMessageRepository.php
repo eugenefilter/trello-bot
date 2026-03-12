@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace TelegramBot\Repositories;
 
+use App\Models\TelegramFile;
 use App\Models\TelegramMessage;
+use App\Models\TrelloCardLog;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 
@@ -33,6 +35,7 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
                 'user_id' => $message['from']['id'] ?? null,
                 'username' => $message['from']['username'] ?? null,
                 'first_name' => $message['from']['first_name'] ?? null,
+                'media_group_id' => $message['media_group_id'] ?? null,
                 'text' => $message['text'] ?? null,
                 'caption' => $message['caption'] ?? null,
                 'payload_json' => $payload,
@@ -90,6 +93,41 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
             'processing_status' => 'failed',
             'processing_notes' => $reason,
         ]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findCardIdByMediaGroup(string $mediaGroupId): ?string
+    {
+        return TrelloCardLog::query()
+            ->join('telegram_messages', 'telegram_messages.id', '=', 'trello_cards_log.telegram_message_id')
+            ->where('telegram_messages.media_group_id', $mediaGroupId)
+            ->whereNotNull('trello_cards_log.trello_card_id')
+            ->where('trello_cards_log.status', 'success')
+            ->value('trello_cards_log.trello_card_id');
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findSkippedGroupParts(string $mediaGroupId, int $excludeMessageId): array
+    {
+        return TelegramMessage::query()
+            ->where('media_group_id', $mediaGroupId)
+            ->where('processing_status', 'skipped')
+            ->where('id', '!=', $excludeMessageId)
+            ->get()
+            ->map(function (TelegramMessage $message) {
+                return [
+                    'id' => $message->id,
+                    'file_ids' => TelegramFile::query()
+                        ->where('telegram_message_id', $message->id)
+                        ->pluck('file_id')
+                        ->all(),
+                ];
+            })
+            ->all();
     }
 
     /**

@@ -11,12 +11,15 @@ use PHPUnit\Framework\TestCase;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
+use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\CreatedCardResult;
+use TelegramBot\DTOs\DownloadedFile;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Exceptions\TrelloConnectionException;
 use TelegramBot\Services\CardTemplateRenderer;
+use TelegramBot\Services\TelegramFileDownloader;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use TelegramBot\Services\TrelloCardCreator;
 
@@ -37,6 +40,10 @@ class TelegramUpdateProcessorTest extends TestCase
 
     private MockInterface $telegram;
 
+    private MockInterface $trello;
+
+    private MockInterface $fileDownloader;
+
     private TelegramUpdateProcessor $processor;
 
     protected function setUp(): void
@@ -48,6 +55,8 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->routing = Mockery::mock(RoutingEngineInterface::class);
         $this->cardCreator = Mockery::mock(TrelloCardCreator::class);
         $this->telegram = Mockery::mock(TelegramAdapterInterface::class);
+        $this->trello = Mockery::mock(TrelloAdapterInterface::class);
+        $this->fileDownloader = Mockery::mock(TelegramFileDownloader::class);
 
         $this->processor = new TelegramUpdateProcessor(
             $this->repository,
@@ -56,6 +65,8 @@ class TelegramUpdateProcessorTest extends TestCase
             $this->cardCreator,
             new CardTemplateRenderer,
             $this->telegram,
+            $this->trello,
+            $this->fileDownloader,
         );
     }
 
@@ -166,6 +177,165 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->processor->process(1);
     }
 
+    /**
+     * "Догоняющий" update медиагруппы: карточка уже создана →
+     * скачивает фото и прикрепляет к существующей карточке.
+     * Новая карточка НЕ создаётся, reply НЕ отправляется.
+     */
+    public function test_catching_up_update_attaches_photo_to_existing_card(): void
+    {
+        $dto = $this->makeMediaGroupDTO(photos: ['file-id-1']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')
+            ->once()->with('group-123')->andReturn('existing-card-id');
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('file-id-1', 1)
+            ->andReturn(new DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('existing-card-id', '/tmp/photo.jpg', 'image/jpeg');
+
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldNotReceive('sendMessage');
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * "Догоняющий" update с документом → прикрепляется документ.
+     */
+    public function test_catching_up_update_attaches_document_to_existing_card(): void
+    {
+        $dto = $this->makeMediaGroupDTO(documents: ['doc-file-id']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')
+            ->once()->with('group-123')->andReturn('existing-card-id');
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/file.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+
+        $this->trello->shouldReceive('attachFile')->once();
+
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldNotReceive('sendMessage');
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Первый update медиагруппы без существующей карточки →
+     * обычный флоу создания карточки.
+     */
+    public function test_first_group_update_without_existing_card_creates_card(): void
+    {
+        $dto = $this->makeMediaGroupDTO(photos: ['file-id-1']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')
+            ->once()->with('group-123')->andReturn(null);
+
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('findSkippedGroupParts')
+            ->once()->with('group-123', 1)->andReturn([]);
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Первый update медиагруппы, нет карточки, нет routing rule → markSkipped.
+     */
+    public function test_first_group_update_without_routing_marks_skipped(): void
+    {
+        $dto = $this->makeMediaGroupDTO(photos: ['file-id-1']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')
+            ->once()->with('group-123')->andReturn(null);
+
+        $this->routing->shouldReceive('resolve')->once()->andReturn(null);
+        $this->cardCreator->shouldNotReceive('create');
+        $this->repository->shouldReceive('markSkipped')
+            ->once()->with(1, 'Правило маршрутизации не найдено');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Первый update группы создаёт карточку и retroactively
+     * прикрепляет файлы из ранее пришедших skipped частей группы.
+     */
+    public function test_retroactively_attaches_files_from_skipped_group_parts(): void
+    {
+        $dto = $this->makeMediaGroupDTO(photos: ['main-file-id']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')
+            ->once()->with('group-123')->andReturn(null);
+
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+
+        // Репозиторий возвращает одну skipped часть с файлом
+        $this->repository->shouldReceive('findSkippedGroupParts')
+            ->once()->with('group-123', 1)
+            ->andReturn([['id' => 99, 'file_ids' => ['skipped-file-id']]]);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('skipped-file-id', 99)
+            ->andReturn(new DownloadedFile('/tmp/skipped.jpg', 'image/jpeg'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('new-card', '/tmp/skipped.jpg', 'image/jpeg');
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(99);
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Если skipped частей нет — никаких лишних вызовов.
+     */
+    public function test_no_retroactive_attach_when_no_skipped_parts(): void
+    {
+        $dto = $this->makeMediaGroupDTO(photos: ['main-file-id']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findCardIdByMediaGroup')->once()->andReturn(null);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+
+        $this->repository->shouldReceive('findSkippedGroupParts')
+            ->once()->with('group-123', 1)->andReturn([]);
+
+        $this->fileDownloader->shouldNotReceive('download');
+        $this->trello->shouldNotReceive('attachFile');
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
     // --- Fixtures ---
 
     private function makeMessageDTO(): TelegramMessageDTO
@@ -183,6 +353,25 @@ class TelegramUpdateProcessorTest extends TestCase
             username: 'testuser',
             firstName: 'Test',
             sentAt: new DateTimeImmutable,
+        );
+    }
+
+    private function makeMediaGroupDTO(array $photos = [], array $documents = []): TelegramMessageDTO
+    {
+        return new TelegramMessageDTO(
+            messageType: empty($photos) ? 'text' : 'text_photo',
+            text: null,
+            caption: '/bug test',
+            photos: $photos,
+            documents: $documents,
+            userId: 42,
+            chatId: '100',
+            chatType: 'private',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            mediaGroupId: 'group-123',
         );
     }
 
