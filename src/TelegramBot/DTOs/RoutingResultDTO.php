@@ -14,6 +14,7 @@ class RoutingResultDTO
 {
     /**
      * @param  string  $listId  ID списка Trello, в который создаётся карточка
+     * @param  string  $listName  Название списка Trello (для ответа пользователю)
      * @param  string[]  $memberIds  Trello member ID для назначения
      * @param  string[]  $labelIds  Trello label ID для добавления
      * @param  string  $cardTitleTemplate  Шаблон заголовка: "{{first_name}}: {{text_preview}}"
@@ -21,6 +22,7 @@ class RoutingResultDTO
      */
     public function __construct(
         public string $listId,
+        public string $listName,
         public array $memberIds,
         public array $labelIds,
         public string $cardTitleTemplate,

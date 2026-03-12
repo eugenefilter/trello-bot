@@ -19,6 +19,7 @@ class RoutingRuleData
      * @param  string|null  $command  /bug | /task | null = любая команда
      * @param  bool|null  $hasPhoto  true = только с фото, null = не важно
      * @param  string  $trelloListId  trello_list_id из таблицы trello_lists (реальный ID в Trello)
+     * @param  string  $listName  Название списка Trello (для ответа пользователю)
      * @param  string[]  $labelIds  Trello label IDs из поля label_ids (JSON)
      * @param  string[]  $memberIds  Trello member IDs из поля member_ids (JSON)
      * @param  int  $priority  чем выше — тем приоритетнее при нескольких совпадениях
@@ -29,6 +30,7 @@ class RoutingRuleData
         public ?string $command,
         public ?bool $hasPhoto,
         public string $trelloListId,
+        public string $listName,
         public array $labelIds,
         public array $memberIds,
         public string $cardTitleTemplate,

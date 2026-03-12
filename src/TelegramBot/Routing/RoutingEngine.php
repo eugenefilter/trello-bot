@@ -37,6 +37,7 @@ class RoutingEngine implements RoutingEngineInterface
             if ($this->matches($rule, $message)) {
                 return new RoutingResultDTO(
                     listId: $rule->trelloListId,
+                    listName: $rule->listName,
                     memberIds: $rule->memberIds,
                     labelIds: $rule->labelIds,
                     cardTitleTemplate: $rule->cardTitleTemplate,

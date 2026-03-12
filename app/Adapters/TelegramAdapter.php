@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Adapters;
+
+use Illuminate\Support\Facades\Log;
+use Telegram\Bot\Api;
+use TelegramBot\Contracts\TelegramAdapterInterface;
+use TelegramBot\DTOs\TelegramFileInfo;
+use TelegramBot\Exceptions\TelegramFileException;
+
+/**
+ * Реализация TelegramAdapterInterface через Telegram Bot SDK.
+ *
+ * SDK используется только в app/ слое согласно архитектурному решению
+ * (см. DEVELOPMENT_PLAN.md — Стратегия интеграции Telegram Bot SDK).
+ *
+ * Ошибки sendMessage логируются как warning и не пробрасываются —
+ * отправка ответа не должна блокировать основной поток обработки.
+ */
+class TelegramAdapter implements TelegramAdapterInterface
+{
+    public function __construct(
+        private readonly Api $telegram,
+        private readonly string $botToken,
+        private readonly string $storageDir,
+    ) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * Ошибки логируются как warning — не критично для основного потока.
+     */
+    public function sendMessage(string $chatId, string $text, array $options = []): void
+    {
+        try {
+            $this->telegram->sendMessage(array_merge([
+                'chat_id' => $chatId,
+                'text' => $text,
+            ], $options));
+        } catch (\Throwable $e) {
+            Log::warning('Telegram sendMessage failed', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @throws TelegramFileException если file_id не найден в Telegram
+     */
+    public function getFile(string $fileId): TelegramFileInfo
+    {
+        try {
+            $file = $this->telegram->getFile(['file_id' => $fileId]);
+        } catch (\Throwable $e) {
+            throw new TelegramFileException(
+                "Failed to get file info for file_id={$fileId}: {$e->getMessage()}",
+                previous: $e,
+            );
+        }
+
+        return new TelegramFileInfo(
+            fileId: $file->fileId,
+            filePath: $file->filePath,
+            fileSize: $file->fileSize,
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Скачивает файл по file_path из Telegram и сохраняет в storageDir.
+     * Возвращает абсолютный локальный путь.
+     *
+     * @throws TelegramFileException при ошибке скачивания
+     */
+    public function downloadFile(string $filePath): string
+    {
+        $url = "https://api.telegram.org/file/bot{$this->botToken}/{$filePath}";
+        $localPath = $this->storageDir.'/'.basename($filePath);
+
+        $content = @file_get_contents($url);
+
+        if ($content === false) {
+            throw new TelegramFileException("Failed to download file: {$filePath}");
+        }
+
+        file_put_contents($localPath, $content);
+
+        return $localPath;
+    }
+}

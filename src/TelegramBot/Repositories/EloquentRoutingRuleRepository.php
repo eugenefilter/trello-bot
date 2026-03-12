@@ -32,6 +32,7 @@ class EloquentRoutingRuleRepository implements RoutingRuleRepositoryInterface
                 command: $rule->command,
                 hasPhoto: $rule->has_photo,
                 trelloListId: $rule->targetList->trello_list_id,
+                listName: $rule->targetList->name,
                 labelIds: $rule->label_ids ?? [],
                 memberIds: $rule->member_ids ?? [],
                 cardTitleTemplate: $rule->card_title_template,

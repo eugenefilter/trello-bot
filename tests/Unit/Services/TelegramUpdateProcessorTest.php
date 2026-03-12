@@ -9,6 +9,7 @@ use Mockery;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\CreatedCardResult;
@@ -34,23 +35,27 @@ class TelegramUpdateProcessorTest extends TestCase
 
     private MockInterface $cardCreator;
 
+    private MockInterface $telegram;
+
     private TelegramUpdateProcessor $processor;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->repository = Mockery::mock(TelegramMessageRepositoryInterface::class);
-        $this->parser = Mockery::mock(UpdateParserInterface::class);
-        $this->routing = Mockery::mock(RoutingEngineInterface::class);
+        $this->repository  = Mockery::mock(TelegramMessageRepositoryInterface::class);
+        $this->parser      = Mockery::mock(UpdateParserInterface::class);
+        $this->routing     = Mockery::mock(RoutingEngineInterface::class);
         $this->cardCreator = Mockery::mock(TrelloCardCreator::class);
+        $this->telegram    = Mockery::mock(TelegramAdapterInterface::class);
 
         $this->processor = new TelegramUpdateProcessor(
             $this->repository,
             $this->parser,
             $this->routing,
             $this->cardCreator,
-            new CardTemplateRenderer,
+            new CardTemplateRenderer(),
+            $this->telegram,
         );
     }
 
@@ -64,11 +69,11 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
-     * Happy path: парсер → routing → создание карточки → markProcessed.
+     * Happy path: парсер → routing → создание карточки → ответ пользователю → markProcessed.
      */
     public function test_happy_path_creates_card_and_marks_processed(): void
     {
-        $dto = $this->makeMessageDTO();
+        $dto     = $this->makeMessageDTO();
         $routing = $this->makeRoutingResult();
 
         $this->repository->shouldReceive('getPayload')->once()->with(1)->andReturn(['update_id' => 1]);
@@ -83,7 +88,34 @@ class TelegramUpdateProcessorTest extends TestCase
                     && ! str_contains($rendered->cardDescriptionTemplate, '{{');
             })
             ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * После успешного создания карточки пользователю отправляется подтверждение
+     * с названием списка и ссылкой на карточку.
+     */
+    public function test_sends_reply_with_list_name_and_card_url_after_creation(): void
+    {
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($this->makeMessageDTO());
+        $this->routing->shouldReceive('resolve')->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text) {
+                return $chatId === '100'
+                    && str_contains($text, 'Backlog')
+                    && str_contains($text, 'https://trello.com/c/card-1');
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once();
 
         $this->processor->process(1);
     }
@@ -117,7 +149,8 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
-     * Trello бросил исключение — markProcessed НЕ вызывается, исключение пробрасывается.
+     * Trello бросил исключение — markProcessed и sendMessage НЕ вызываются,
+     * исключение пробрасывается.
      */
     public function test_does_not_mark_processed_on_trello_exception(): void
     {
@@ -125,6 +158,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->once()->andReturn($this->makeMessageDTO());
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->andThrow(new TrelloConnectionException('timeout'));
+        $this->telegram->shouldNotReceive('sendMessage');
         $this->repository->shouldNotReceive('markProcessed');
 
         $this->expectException(TrelloConnectionException::class);
@@ -156,6 +190,7 @@ class TelegramUpdateProcessorTest extends TestCase
     {
         return new RoutingResultDTO(
             listId: 'list-abc',
+            listName: 'Backlog',
             memberIds: [],
             labelIds: [],
             cardTitleTemplate: '{{first_name}}: {{text_preview}}',

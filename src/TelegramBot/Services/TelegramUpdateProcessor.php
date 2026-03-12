@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TelegramBot\Services;
 
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\RoutingResultDTO;
@@ -18,7 +19,8 @@ use TelegramBot\DTOs\RoutingResultDTO;
  *   3. Ищет routing rule → RoutingResultDTO (null = нет подходящего правила)
  *   4. Рендерит шаблоны карточки через CardTemplateRenderer
  *   5. Создаёт карточку в Trello
- *   6. Помечает сообщение как обработанное
+ *   6. Отправляет подтверждение пользователю через Telegram
+ *   7. Помечает сообщение как обработанное
  *
  * При исключении из TrelloCardCreator markProcessed не вызывается —
  * Job повторит обработку согласно политике retry.
@@ -31,6 +33,7 @@ class TelegramUpdateProcessor
         private readonly RoutingEngineInterface $routing,
         private readonly TrelloCardCreator $cardCreator,
         private readonly CardTemplateRenderer $renderer,
+        private readonly TelegramAdapterInterface $telegram,
     ) {}
 
     /**
@@ -56,14 +59,25 @@ class TelegramUpdateProcessor
 
         $rendered = new RoutingResultDTO(
             listId:                  $routingResult->listId,
+            listName:                $routingResult->listName,
             memberIds:               $routingResult->memberIds,
             labelIds:                $routingResult->labelIds,
             cardTitleTemplate:       $this->renderer->render($routingResult->cardTitleTemplate, $dto),
             cardDescriptionTemplate: $this->renderer->render($routingResult->cardDescriptionTemplate, $dto),
         );
 
-        $this->cardCreator->create($dto, $rendered, $telegramMessageId);
+        $result = $this->cardCreator->create($dto, $rendered, $telegramMessageId);
+
+        $this->telegram->sendMessage(
+            $dto->chatId,
+            $this->buildReplyText($rendered->listName, $result->url),
+        );
 
         $this->repository->markProcessed($telegramMessageId);
+    }
+
+    private function buildReplyText(string $listName, string $cardUrl): string
+    {
+        return "✅ Карточка создана\n\nКолонка: {$listName}\nСсылка: {$cardUrl}";
     }
 }

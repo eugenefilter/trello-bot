@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Adapters\TelegramAdapter;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
+use Telegram\Bot\Api;
 use TelegramBot\Adapters\TrelloAdapter;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
@@ -43,6 +46,17 @@ class AppServiceProvider extends ServiceProvider
 
         // Routing Engine — зависит от RoutingRuleRepositoryInterface (разрешается контейнером)
         $this->app->bind(RoutingEngineInterface::class, RoutingEngine::class);
+
+        // Telegram Bot API клиент
+        $this->app->bind(TelegramAdapterInterface::class, function () {
+            $token = config('telegram.bot_token', '');
+
+            return new TelegramAdapter(
+                telegram:   new Api($token),
+                botToken:   $token,
+                storageDir: storage_path('app/telegram_files'),
+            );
+        });
 
         // Trello API клиент — credentials берутся из config/services.php
         $this->app->bind(TrelloAdapterInterface::class, function ($app) {

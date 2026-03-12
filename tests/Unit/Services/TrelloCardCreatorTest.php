@@ -198,6 +198,7 @@ class TrelloCardCreatorTest extends TestCase
     ): RoutingResultDTO {
         return new RoutingResultDTO(
             listId:                  'list-123',
+            listName:                'Test List',
             memberIds:               $memberIds,
             labelIds:                $labelIds,
             cardTitleTemplate:       $titleTemplate,

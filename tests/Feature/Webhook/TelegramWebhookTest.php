@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Webhook;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,9 @@ class TelegramWebhookTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Webhook-тест проверяет только HTTP-слой — джоб не должен запускаться.
+        Queue::fake();
 
         // Прописываем секрет в конфиг перед каждым тестом,
         // чтобы не зависеть от значения в .env.testing.

@@ -72,6 +72,7 @@ class RoutingEngineTest extends TestCase
             command:                 $overrides['command']  ?? null,
             hasPhoto:                $overrides['hasPhoto'] ?? null,
             trelloListId:            $overrides['trelloListId'] ?? 'list_default',
+            listName:                $overrides['listName'] ?? 'Default List',
             labelIds:                $overrides['labelIds']  ?? [],
             memberIds:               $overrides['memberIds'] ?? [],
             cardTitleTemplate:       $overrides['cardTitleTemplate'] ?? '{{first_name}}: {{text_preview}}',
@@ -214,6 +215,7 @@ class RoutingEngineTest extends TestCase
         $result = $this->engine->resolve($this->makeMessage());
 
         self::assertSame('list_abc', $result?->listId);
+        self::assertSame('Default List', $result?->listName);
         self::assertSame(['lbl1', 'lbl2'], $result?->labelIds);
         self::assertSame(['mbr1'], $result?->memberIds);
         self::assertSame('{{first_name}}: {{text_preview}}', $result?->cardTitleTemplate);
