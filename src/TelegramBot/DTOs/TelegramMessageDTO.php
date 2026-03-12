@@ -10,7 +10,7 @@ namespace TelegramBot\DTOs;
  * Иммутабельный объект — создаётся один раз в TelegramUpdateParser
  * и передаётся без изменений через все слои (Routing → Job → Service).
  */
-readonly class TelegramMessageDTO
+class TelegramMessageDTO
 {
     /**
      * @param  string  $messageType  Тип сообщения: text | photo | text_photo | command

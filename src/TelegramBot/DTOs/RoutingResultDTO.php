@@ -10,7 +10,7 @@ namespace TelegramBot\DTOs;
  * Формируется в RoutingEngine по найденному routing rule
  * и передаётся в TrelloCardCreator для создания карточки.
  */
-readonly class RoutingResultDTO
+class RoutingResultDTO
 {
     /**
      * @param  string  $listId  ID списка Trello, в который создаётся карточка

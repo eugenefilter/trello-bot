@@ -10,7 +10,7 @@ namespace TelegramBot\DTOs;
  * Возвращается из TrelloAdapterInterface::createCard()
  * и сохраняется в trello_cards_log.
  */
-readonly class CreatedCardResult
+class CreatedCardResult
 {
     /**
      * @param  string  $id  ID созданной карточки в Trello API

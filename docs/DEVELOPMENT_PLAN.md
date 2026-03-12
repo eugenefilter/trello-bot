@@ -369,7 +369,7 @@ readonly class TrelloCardDTO {
 
 ## Фаза 4. Routing Engine
 
-### 4.1 Миграция `routing_rules`
+### 4.1 Миграция `routing_rules` ✓
 
 ```sql
 id
@@ -377,8 +377,11 @@ id
 command (nullable), keyword (nullable), has_photo (nullable bool),
 target_list_id (FK trello_lists), label_ids (json),
 member_ids (json), card_title_template, card_description_template,
-priority (int, default 0), is_active (bool), created_at
+priority (int, default 0, index), is_active (bool), created_at
 ```
+
+**Модель:** `app/Models/RoutingRule.php`
+**Реализация:** `app/Routing/RoutingEngine.php` → `src/TelegramBot/Routing/RoutingEngine.php`
 
 ### 4.2 RoutingEngine
 
@@ -394,7 +397,7 @@ priority (int, default 0), is_active (bool), created_at
 [ ] Возвращает null если нет ни одного активного правила
 ```
 
-**Реализация:** `app/Routing/RoutingEngine.php`
+**Реализация:** `src/TelegramBot/Routing/RoutingEngine.php`
 
 ```php
 interface RoutingEngineInterface {
