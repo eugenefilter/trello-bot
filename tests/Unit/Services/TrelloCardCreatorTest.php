@@ -13,6 +13,7 @@ use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloConnectionException;
+use TelegramBot\Services\TelegramFileDownloader;
 use TelegramBot\Services\TrelloCardCreator;
 use Tests\TestCase;
 
@@ -30,6 +31,8 @@ class TrelloCardCreatorTest extends TestCase
 
     private MockInterface $cardLog;
 
+    private MockInterface $fileDownloader;
+
     private TrelloCardCreator $creator;
 
     protected function setUp(): void
@@ -38,7 +41,8 @@ class TrelloCardCreatorTest extends TestCase
 
         $this->adapter = Mockery::mock(TrelloAdapterInterface::class);
         $this->cardLog = Mockery::mock(CardLogRepositoryInterface::class);
-        $this->creator = new TrelloCardCreator($this->adapter, $this->cardLog);
+        $this->fileDownloader = Mockery::mock(TelegramFileDownloader::class);
+        $this->creator = new TrelloCardCreator($this->adapter, $this->cardLog, $this->fileDownloader);
     }
 
     /**
@@ -56,6 +60,7 @@ class TrelloCardCreatorTest extends TestCase
 
         $this->adapter->shouldReceive('addMembersToCard')->once();
         $this->adapter->shouldReceive('addLabelsToCard')->once();
+        $this->fileDownloader->shouldNotReceive('download');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
         $this->creator->create(
@@ -80,6 +85,7 @@ class TrelloCardCreatorTest extends TestCase
 
         $this->adapter->shouldReceive('addMembersToCard')->once();
         $this->adapter->shouldReceive('addLabelsToCard')->once();
+        $this->fileDownloader->shouldNotReceive('download');
         $this->cardLog->shouldReceive('logSuccess')->once();
 
         $this->creator->create(

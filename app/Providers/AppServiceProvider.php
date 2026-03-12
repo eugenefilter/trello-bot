@@ -18,12 +18,14 @@ use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
+use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\Parsers\TelegramUpdateParser;
 use TelegramBot\Repositories\EloquentRequestLogRepository;
 use TelegramBot\Repositories\EloquentRoutingRuleRepository;
 use TelegramBot\Repositories\EloquentTelegramFileRepository;
 use TelegramBot\Repositories\EloquentTelegramMessageRepository;
+use TelegramBot\Repositories\EloquentTrelloApiLogRepository;
 use TelegramBot\Repositories\TrelloCardLogRepository;
 use TelegramBot\Routing\RoutingEngine;
 
@@ -41,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Репозиторий сырых входящих запросов (request log)
         $this->app->bind(RequestLogRepositoryInterface::class, EloquentRequestLogRepository::class);
+
+        // Репозиторий логов Trello API
+        $this->app->bind(TrelloApiLogRepositoryInterface::class, EloquentTrelloApiLogRepository::class);
 
         // Репозиторий входящих Telegram update
         $this->app->bind(TelegramMessageRepositoryInterface::class, EloquentTelegramMessageRepository::class);
@@ -72,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
                 http: $app->make(HttpFactory::class),
                 apiKey: $connection?->api_key ?? '',
                 apiToken: $connection?->api_token ?? '',
+                apiLog: $app->make(TrelloApiLogRepositoryInterface::class),
             );
         });
     }

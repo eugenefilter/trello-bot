@@ -73,6 +73,7 @@ class TelegramUpdateProcessor
         $this->telegram->sendMessage(
             $dto->chatId,
             $this->buildReplyText($rendered->listName, $result->url),
+            ['parse_mode' => 'HTML'],
         );
 
         $this->repository->markProcessed($telegramMessageId);
@@ -80,6 +81,6 @@ class TelegramUpdateProcessor
 
     private function buildReplyText(string $listName, string $cardUrl): string
     {
-        return "✅ Карточка создана\n\nКолонка: {$listName}\nСсылка: {$cardUrl}";
+        return "✅ Карточка создана\n\nКолонка: {$listName}\n<a href=\"{$cardUrl}\">Ссылка на карточку</a>";
     }
 }

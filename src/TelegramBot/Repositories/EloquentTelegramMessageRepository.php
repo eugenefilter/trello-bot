@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TelegramBot\Repositories;
 
 use App\Models\TelegramMessage;
+use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 
 /**
@@ -12,6 +13,10 @@ use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
  */
 class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInterface
 {
+    public function __construct(
+        private readonly TelegramFileRepositoryInterface $fileRepository,
+    ) {}
+
     /**
      * {@inheritDoc}
      */
@@ -34,6 +39,10 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
                 'received_at' => now(),
             ],
         );
+
+        if ($model->wasRecentlyCreated) {
+            $this->saveFiles($model->id, $message);
+        }
 
         return ['id' => $model->id, 'created' => $model->wasRecentlyCreated];
     }
@@ -81,5 +90,20 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
             'processing_status' => 'failed',
             'processing_notes' => $reason,
         ]);
+    }
+
+    /**
+     * Сохраняет фото/документы из payload в telegram_files.
+     * Вызывается только для новых (не дублирующих) update.
+     */
+    private function saveFiles(int $messageId, array $message): void
+    {
+        $photoSizes = $message['photo'] ?? [];
+
+        if (! empty($photoSizes)) {
+            // Берём последний элемент — максимальное разрешение (как в парсере)
+            $largest = end($photoSizes);
+            $this->fileRepository->createForMessage($messageId, $largest, 'photo');
+        }
     }
 }

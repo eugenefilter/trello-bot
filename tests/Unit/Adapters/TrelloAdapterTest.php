@@ -7,7 +7,10 @@ namespace Tests\Unit\Adapters;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Http;
+use Mockery;
+use Mockery\MockInterface;
 use TelegramBot\Adapters\TrelloAdapter;
+use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloAuthException;
@@ -26,16 +29,28 @@ class TrelloAdapterTest extends TestCase
 {
     private TrelloAdapter $adapter;
 
+    private MockInterface $apiLog;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Создаём адаптер с тестовыми credentials
+        $this->apiLog = Mockery::mock(TrelloApiLogRepositoryInterface::class);
+        $this->apiLog->shouldReceive('log')->byDefault();
+
         $this->adapter = new TrelloAdapter(
             http: app(HttpFactory::class),
             apiKey: 'test-key',
             apiToken: 'test-token',
+            apiLog: $this->apiLog,
         );
+    }
+
+    protected function tearDown(): void
+    {
+        $this->addToAssertionCount(Mockery::getContainer()->mockery_getExpectationCount());
+        Mockery::close();
+        parent::tearDown();
     }
 
     /**
@@ -50,15 +65,10 @@ class TrelloAdapterTest extends TestCase
         $this->adapter->createCard($this->cardDTO());
 
         Http::assertSent(function ($request) {
-            // Проверяем endpoint и метод
             $this->assertStringContainsString('/1/cards', $request->url());
             $this->assertSame('POST', $request->method());
-
-            // Проверяем что credentials переданы
             $this->assertStringContainsString('test-key', $request->url());
             $this->assertStringContainsString('test-token', $request->url());
-
-            // Проверяем тело запроса
             $this->assertSame('list-123', $request['idList']);
             $this->assertSame('Новая задача', $request['name']);
             $this->assertSame('Описание задачи', $request['desc']);
@@ -98,7 +108,7 @@ class TrelloAdapterTest extends TestCase
     }
 
     /**
-     * 422 от Trello — невалидные параметры (например несуществующий list_id) → TrelloValidationException.
+     * 422 от Trello — невалидные параметры → TrelloValidationException.
      */
     public function test_throws_validation_exception_on_422(): void
     {
@@ -112,8 +122,21 @@ class TrelloAdapterTest extends TestCase
     }
 
     /**
-     * Сетевая ошибка (таймаут, недоступность) → TrelloConnectionException.
-     * Job поймает это исключение и уйдёт в retry.
+     * 500 и другие серверные ошибки → TrelloConnectionException.
+     */
+    public function test_throws_connection_exception_on_server_error(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('internal server error', 500),
+        ]);
+
+        $this->expectException(TrelloConnectionException::class);
+
+        $this->adapter->createCard($this->cardDTO());
+    }
+
+    /**
+     * Сетевая ошибка → TrelloConnectionException.
      */
     public function test_throws_connection_exception_on_network_error(): void
     {
@@ -129,7 +152,72 @@ class TrelloAdapterTest extends TestCase
     }
 
     /**
-     * attachFile отправляет POST на /cards/{id}/attachments (multipart/form-data).
+     * Успешный запрос логируется с корректным статусом.
+     */
+    public function test_logs_successful_request(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response($this->cardResponse(), 200),
+        ]);
+
+        $this->apiLog
+            ->shouldReceive('log')
+            ->once()
+            ->withArgs(function (string $method, string $endpoint, int $status) {
+                return $method === 'POST'
+                    && str_contains($endpoint, '/cards')
+                    && $status === 200;
+            });
+
+        $this->adapter->createCard($this->cardDTO());
+    }
+
+    /**
+     * Ошибочный запрос логируется до броска исключения.
+     */
+    public function test_logs_failed_request_before_throwing(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('invalid key', 401),
+        ]);
+
+        $this->apiLog
+            ->shouldReceive('log')
+            ->once()
+            ->withArgs(function (string $method, string $endpoint, int $status) {
+                return $status === 401;
+            });
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->createCard($this->cardDTO());
+    }
+
+    /**
+     * Сетевая ошибка логируется со статусом 0.
+     */
+    public function test_logs_connection_error_with_status_zero(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => function () {
+                throw new ConnectionException('timeout');
+            },
+        ]);
+
+        $this->apiLog
+            ->shouldReceive('log')
+            ->once()
+            ->withArgs(function (string $method, string $endpoint, int $status) {
+                return $status === 0;
+            });
+
+        $this->expectException(TrelloConnectionException::class);
+
+        $this->adapter->createCard($this->cardDTO());
+    }
+
+    /**
+     * attachFile отправляет POST на /cards/{id}/attachments.
      */
     public function test_attach_file_sends_request_to_correct_endpoint(): void
     {

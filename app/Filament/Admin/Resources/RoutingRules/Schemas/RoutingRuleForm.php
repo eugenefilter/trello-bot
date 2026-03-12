@@ -60,10 +60,14 @@ class RoutingRuleForm
                         TextInput::make('keyword')
                             ->label('Ключевое слово')
                             ->default(null),
-                        Toggle::make('has_photo')
-                            ->label('Только с фото')
-                            ->default(null)
-                            ->inline(false),
+                        Select::make('has_photo')
+                            ->label('Наличие фото')
+                            ->options([
+                                '1' => 'Только с фото',
+                                '0' => 'Только без фото',
+                            ])
+                            ->placeholder('Не важно (любое)')
+                            ->default(null),
                     ]),
 
                 Section::make('Действие')

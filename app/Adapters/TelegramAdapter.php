@@ -80,6 +80,10 @@ class TelegramAdapter implements TelegramAdapterInterface
      */
     public function downloadFile(string $filePath): string
     {
+        if (! is_dir($this->storageDir)) {
+            mkdir($this->storageDir, 0755, true);
+        }
+
         $url = "https://api.telegram.org/file/bot{$this->botToken}/{$filePath}";
         $localPath = $this->storageDir.'/'.basename($filePath);
 
@@ -89,7 +93,9 @@ class TelegramAdapter implements TelegramAdapterInterface
             throw new TelegramFileException("Failed to download file: {$filePath}");
         }
 
-        file_put_contents($localPath, $content);
+        if (file_put_contents($localPath, $content) === false) {
+            throw new TelegramFileException("Failed to save file to: {$localPath}");
+        }
 
         return $localPath;
     }

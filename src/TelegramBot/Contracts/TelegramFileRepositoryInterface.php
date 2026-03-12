@@ -13,6 +13,14 @@ namespace TelegramBot\Contracts;
 interface TelegramFileRepositoryInterface
 {
     /**
+     * Создаёт запись о файле при первом получении сообщения.
+     * Вызывается из TelegramMessageRepository при сохранении входящего update.
+     *
+     * @param  array  $photoSize  Один элемент из массива photo[] Telegram (наибольший)
+     */
+    public function createForMessage(int $messageId, array $photoSize, string $fileType): void;
+
+    /**
      * Сохраняет локальный путь скачанного файла.
      *
      * @param  string  $fileId  Telegram file_id (ключ поиска записи)

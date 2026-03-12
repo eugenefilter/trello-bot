@@ -11,6 +11,7 @@ use App\Models\TrelloMember;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use TelegramBot\Adapters\TrelloAdapter;
+use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
 
 /**
  * Синхронизирует справочники Trello из API в локальную БД.
@@ -32,7 +33,7 @@ class SyncTrelloBoardCommand extends Command
 
     protected $description = 'Синхронизирует справочники Trello (списки, метки, участники) из API';
 
-    public function handle(HttpFactory $http): int
+    public function handle(HttpFactory $http, TrelloApiLogRepositoryInterface $apiLog): int
     {
         $connectionId = (int) $this->argument('connection_id');
 
@@ -48,6 +49,7 @@ class SyncTrelloBoardCommand extends Command
             http: $http,
             apiKey: $connection->api_key,
             apiToken: $connection->api_token,
+            apiLog: $apiLog,
         );
 
         $this->syncLists($connection, $adapter);

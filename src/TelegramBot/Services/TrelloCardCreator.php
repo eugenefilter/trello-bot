@@ -13,6 +13,7 @@ use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloAuthException;
 use TelegramBot\Exceptions\TrelloConnectionException;
 use TelegramBot\Exceptions\TrelloValidationException;
+use Throwable;
 
 /**
  * Оркестрирует создание карточки в Trello по входящему сообщению.
@@ -30,6 +31,7 @@ class TrelloCardCreator
     public function __construct(
         private readonly TrelloAdapterInterface $trello,
         private readonly CardLogRepositoryInterface $cardLog,
+        private readonly TelegramFileDownloader $fileDownloader,
     ) {}
 
     /**
@@ -39,7 +41,7 @@ class TrelloCardCreator
      *
      * @throws TrelloAuthException
      * @throws TrelloValidationException
-     * @throws TrelloConnectionException|\Throwable
+     * @throws TrelloConnectionException|Throwable
      */
     public function create(
         TelegramMessageDTO $message,
@@ -59,6 +61,12 @@ class TrelloCardCreator
             $this->trello->addMembersToCard($result->id, $routing->memberIds);
             $this->trello->addLabelsToCard($result->id, $routing->labelIds);
 
+            // Прикрепляем фото к карточке
+            foreach ($message->photos as $fileId) {
+                $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                $this->trello->attachFile($result->id, $file->localPath, $file->mimeType);
+            }
+
             $this->cardLog->logSuccess(
                 telegramMessageId: $telegramMessageId,
                 listId: $routing->listId,
@@ -68,7 +76,7 @@ class TrelloCardCreator
 
             return $result;
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->cardLog->logError(
                 telegramMessageId: $telegramMessageId,
                 listId: $routing->listId,

@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
 use TelegramBot\Contracts\TrelloAdapterInterface;
+use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloAuthException;
@@ -17,9 +18,9 @@ use TelegramBot\Exceptions\TrelloValidationException;
 /**
  * Реализация клиента Trello REST API v1.
  *
- * HTTP-клиент инжектируется через конструктор — это позволяет
- * использовать Http::fake() в тестах без реальных запросов к Trello.
- * Биндинг настраивается в AppServiceProvider.
+ * Каждый HTTP-вызов логируется через TrelloApiLogRepositoryInterface:
+ *   — метод, endpoint, HTTP-статус, тело ответа (только для ошибок), время выполнения.
+ * Это позволяет отлаживать интеграцию через админ-панель без grep по логам.
  */
 class TrelloAdapter implements TrelloAdapterInterface
 {
@@ -29,32 +30,24 @@ class TrelloAdapter implements TrelloAdapterInterface
         private readonly HttpFactory $http,
         private readonly string $apiKey,
         private readonly string $apiToken,
+        private readonly TrelloApiLogRepositoryInterface $apiLog,
     ) {}
 
     /**
-     * Создаёт карточку в указанном списке Trello.
-     *
-     * @throws TrelloAuthException при 401 — невалидные credentials
-     * @throws TrelloValidationException при 422 — несуществующий list/label/member
-     * @throws TrelloConnectionException при сетевой ошибке
+     * {@inheritDoc}
      */
     public function createCard(TrelloCardDTO $dto): CreatedCardResult
     {
-        try {
-            $response = $this->http
-                ->withQueryParameters($this->credentials())
-                ->post(self::BASE_URL.'/cards', [
-                    'idList' => $dto->listId,
-                    'name' => $dto->name,
-                    'desc' => $dto->description,
-                    'idMembers' => implode(',', $dto->memberIds),
-                    'idLabels' => implode(',', $dto->labelIds),
-                ]);
-        } catch (ConnectionException $e) {
-            throw new TrelloConnectionException($e->getMessage(), previous: $e);
-        }
-
-        $this->handleErrors($response);
+        $response = $this->call('POST', '/cards', fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->post(self::BASE_URL.'/cards', [
+                'idList' => $dto->listId,
+                'name' => $dto->name,
+                'desc' => $dto->description,
+                'idMembers' => implode(',', $dto->memberIds),
+                'idLabels' => implode(',', $dto->labelIds),
+            ])
+        );
 
         $body = $response->json();
 
@@ -65,23 +58,15 @@ class TrelloAdapter implements TrelloAdapterInterface
     }
 
     /**
-     * Прикрепляет файл к карточке через multipart/form-data запрос.
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function attachFile(string $cardId, string $filePath, string $mimeType): void
     {
-        try {
-            $response = $this->http
-                ->withQueryParameters($this->credentials())
-                ->attach('file', file_get_contents($filePath), basename($filePath), ['Content-Type' => $mimeType])
-                ->post(self::BASE_URL."/cards/{$cardId}/attachments");
-        } catch (ConnectionException $e) {
-            throw new TrelloConnectionException($e->getMessage(), previous: $e);
-        }
-
-        $this->handleErrors($response);
+        $this->call('POST', "/cards/{$cardId}/attachments", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->attach('file', file_get_contents($filePath), basename($filePath), ['Content-Type' => $mimeType])
+            ->post(self::BASE_URL."/cards/{$cardId}/attachments")
+        );
 
         if (file_exists($filePath)) {
             unlink($filePath);
@@ -89,121 +74,110 @@ class TrelloAdapter implements TrelloAdapterInterface
     }
 
     /**
-     * Назначает участников на карточку.
-     *
-     * @param  string[]  $memberIds
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function addMembersToCard(string $cardId, array $memberIds): void
     {
         foreach ($memberIds as $memberId) {
-            try {
-                $response = $this->http
-                    ->withQueryParameters($this->credentials())
-                    ->post(self::BASE_URL."/cards/{$cardId}/idMembers", [
-                        'value' => $memberId,
-                    ]);
-            } catch (ConnectionException $e) {
-                throw new TrelloConnectionException($e->getMessage(), previous: $e);
-            }
-
-            $this->handleErrors($response);
+            $this->call('POST', "/cards/{$cardId}/idMembers", fn () => $this->http
+                ->withQueryParameters($this->credentials())
+                ->post(self::BASE_URL."/cards/{$cardId}/idMembers", ['value' => $memberId])
+            );
         }
     }
 
     /**
-     * Добавляет метки на карточку.
-     *
-     * @param  string[]  $labelIds
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function addLabelsToCard(string $cardId, array $labelIds): void
     {
         foreach ($labelIds as $labelId) {
-            try {
-                $response = $this->http
-                    ->withQueryParameters($this->credentials())
-                    ->post(self::BASE_URL."/cards/{$cardId}/idLabels", [
-                        'value' => $labelId,
-                    ]);
-            } catch (ConnectionException $e) {
-                throw new TrelloConnectionException($e->getMessage(), previous: $e);
-            }
-
-            $this->handleErrors($response);
+            $this->call('POST', "/cards/{$cardId}/idLabels", fn () => $this->http
+                ->withQueryParameters($this->credentials())
+                ->post(self::BASE_URL."/cards/{$cardId}/idLabels", ['value' => $labelId])
+            );
         }
     }
 
     /**
-     * Возвращает все списки доски для синхронизации справочника trello_lists.
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function getBoardLists(string $boardId): array
     {
-        try {
-            $response = $this->http
-                ->withQueryParameters($this->credentials())
-                ->get(self::BASE_URL."/boards/{$boardId}/lists");
-        } catch (ConnectionException $e) {
-            throw new TrelloConnectionException($e->getMessage(), previous: $e);
-        }
-
-        $this->handleErrors($response);
+        $response = $this->call('GET', "/boards/{$boardId}/lists", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->get(self::BASE_URL."/boards/{$boardId}/lists")
+        );
 
         return $response->json();
     }
 
     /**
-     * Возвращает все метки доски для синхронизации справочника trello_labels.
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function getBoardLabels(string $boardId): array
     {
-        try {
-            $response = $this->http
-                ->withQueryParameters($this->credentials())
-                ->get(self::BASE_URL."/boards/{$boardId}/labels");
-        } catch (ConnectionException $e) {
-            throw new TrelloConnectionException($e->getMessage(), previous: $e);
-        }
-
-        $this->handleErrors($response);
+        $response = $this->call('GET', "/boards/{$boardId}/labels", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->get(self::BASE_URL."/boards/{$boardId}/labels")
+        );
 
         return $response->json();
     }
 
     /**
-     * Возвращает всех участников доски для синхронизации справочника trello_members.
-     *
-     * @throws TrelloAuthException
-     * @throws TrelloConnectionException
+     * {@inheritDoc}
      */
     public function getBoardMembers(string $boardId): array
     {
-        try {
-            $response = $this->http
-                ->withQueryParameters($this->credentials())
-                ->get(self::BASE_URL."/boards/{$boardId}/members");
-        } catch (ConnectionException $e) {
-            throw new TrelloConnectionException($e->getMessage(), previous: $e);
-        }
-
-        $this->handleErrors($response);
+        $response = $this->call('GET', "/boards/{$boardId}/members", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->get(self::BASE_URL."/boards/{$boardId}/members")
+        );
 
         return $response->json();
     }
 
     /**
-     * Формирует query-параметры для аутентификации в Trello API.
+     * Выполняет HTTP-вызов, логирует результат и пробрасывает исключения.
+     *
+     * @param  callable(): Response  $fn
+     *
+     * @throws TrelloAuthException
+     * @throws TrelloValidationException
+     * @throws TrelloConnectionException
      */
+    private function call(string $method, string $endpoint, callable $fn): Response
+    {
+        $start = microtime(true);
+
+        try {
+            $response = $fn();
+        } catch (ConnectionException $e) {
+            $this->apiLog->log($method, $endpoint, 0, $e->getMessage(), $this->elapsed($start));
+            throw new TrelloConnectionException($e->getMessage(), previous: $e);
+        }
+
+        $isError = $response->failed();
+
+        $this->apiLog->log(
+            $method,
+            $endpoint,
+            $response->status(),
+            $isError ? mb_substr($response->body(), 0, 2000) : null,
+            $this->elapsed($start),
+        );
+
+        $this->handleErrors($response);
+
+        return $response;
+    }
+
+    private function elapsed(float $start): int
+    {
+        return (int) ((microtime(true) - $start) * 1000);
+    }
+
     private function credentials(): array
     {
         return [
@@ -217,6 +191,7 @@ class TrelloAdapter implements TrelloAdapterInterface
      *
      * @throws TrelloAuthException при 401
      * @throws TrelloValidationException при 422
+     * @throws TrelloConnectionException при любом другом 4xx/5xx
      */
     private function handleErrors(Response $response): void
     {
@@ -226,6 +201,9 @@ class TrelloAdapter implements TrelloAdapterInterface
             ),
             $response->status() === 422 => throw new TrelloValidationException(
                 'Trello validation error: '.$response->body()
+            ),
+            $response->failed() => throw new TrelloConnectionException(
+                'Trello API error '.$response->status().': '.$response->body()
             ),
             default => null,
         };
