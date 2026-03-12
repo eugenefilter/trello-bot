@@ -82,6 +82,10 @@ class TrelloAdapter implements TrelloAdapterInterface
         }
 
         $this->handleErrors($response);
+
+        if (file_exists($filePath)) {
+            unlink($filePath);
+        }
     }
 
     /**

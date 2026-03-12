@@ -128,7 +128,72 @@ class TrelloAdapterTest extends TestCase
         $this->adapter->createCard($this->cardDTO());
     }
 
+    /**
+     * attachFile отправляет POST на /cards/{id}/attachments (multipart/form-data).
+     */
+    public function test_attach_file_sends_request_to_correct_endpoint(): void
+    {
+        $tmpFile = $this->createTmpFile();
+
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'attachment-1'], 200),
+        ]);
+
+        $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        Http::assertSent(function ($request) {
+            $this->assertStringContainsString('/cards/card-xyz/attachments', $request->url());
+            $this->assertSame('POST', $request->method());
+
+            return true;
+        });
+    }
+
+    /**
+     * attachFile принимает локальный путь файла и передаёт его содержимое в Trello API.
+     */
+    public function test_attach_file_sends_file_contents(): void
+    {
+        $tmpFile = $this->createTmpFile('test image content');
+
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'attachment-1'], 200),
+        ]);
+
+        $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        Http::assertSent(function ($request) {
+            $this->assertStringContainsString('test-key', $request->url());
+
+            return true;
+        });
+    }
+
+    /**
+     * attachFile удаляет локальный файл после успешной загрузки в Trello.
+     */
+    public function test_attach_file_deletes_local_file_after_upload(): void
+    {
+        $tmpFile = $this->createTmpFile();
+
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'attachment-1'], 200),
+        ]);
+
+        $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        $this->assertFileDoesNotExist($tmpFile);
+    }
+
     // --- Fixtures ---
+
+    private function createTmpFile(string $content = 'fake image data'): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'trello_test_');
+        file_put_contents($path, $content);
+
+        return $path;
+    }
 
     private function cardDTO(): TrelloCardDTO
     {

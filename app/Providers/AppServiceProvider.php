@@ -10,11 +10,13 @@ use TelegramBot\Adapters\TrelloAdapter;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
+use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\Parsers\TelegramUpdateParser;
 use TelegramBot\Repositories\EloquentRoutingRuleRepository;
+use TelegramBot\Repositories\EloquentTelegramFileRepository;
 use TelegramBot\Repositories\EloquentTelegramMessageRepository;
 use TelegramBot\Repositories\TrelloCardLogRepository;
 use TelegramBot\Routing\RoutingEngine;
@@ -37,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         // Репозитории
         $this->app->bind(CardLogRepositoryInterface::class, TrelloCardLogRepository::class);
         $this->app->bind(RoutingRuleRepositoryInterface::class, EloquentRoutingRuleRepository::class);
+        $this->app->bind(TelegramFileRepositoryInterface::class, EloquentTelegramFileRepository::class);
 
         // Routing Engine — зависит от RoutingRuleRepositoryInterface (разрешается контейнером)
         $this->app->bind(RoutingEngineInterface::class, RoutingEngine::class);
