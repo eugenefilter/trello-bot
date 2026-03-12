@@ -25,7 +25,17 @@ interface TelegramMessageRepositoryInterface
     public function getPayload(int $id): array;
 
     /**
-     * Проставляет время успешной обработки сообщения.
+     * Проставляет время успешной обработки сообщения (processing_status = success).
      */
     public function markProcessed(int $id): void;
+
+    /**
+     * Помечает сообщение как пропущенное (не нашли парсер или правило маршрутизации).
+     */
+    public function markSkipped(int $id, string $reason): void;
+
+    /**
+     * Помечает сообщение как окончательно упавшее (все retry исчерпаны).
+     */
+    public function markFailed(int $id, string $reason): void;
 }

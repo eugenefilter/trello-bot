@@ -54,6 +54,32 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
      */
     public function markProcessed(int $id): void
     {
-        TelegramMessage::query()->whereKey($id)->update(['processed_at' => now()]);
+        TelegramMessage::query()->whereKey($id)->update([
+            'processed_at' => now(),
+            'processing_status' => 'success',
+        ]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function markSkipped(int $id, string $reason): void
+    {
+        TelegramMessage::query()->whereKey($id)->update([
+            'processed_at' => now(),
+            'processing_status' => 'skipped',
+            'processing_notes' => $reason,
+        ]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function markFailed(int $id, string $reason): void
+    {
+        TelegramMessage::query()->whereKey($id)->update([
+            'processing_status' => 'failed',
+            'processing_notes' => $reason,
+        ]);
     }
 }

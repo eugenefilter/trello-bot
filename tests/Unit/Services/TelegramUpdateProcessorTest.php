@@ -121,29 +121,29 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
-     * Парсер вернул null — markProcessed вызывается, Trello не вызывается.
+     * Парсер вернул null — markSkipped вызывается, Trello не вызывается.
      */
-    public function test_marks_processed_when_parser_returns_null(): void
+    public function test_marks_skipped_when_parser_returns_null(): void
     {
         $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
         $this->parser->shouldReceive('parse')->once()->andReturn(null);
         $this->routing->shouldNotReceive('resolve');
         $this->cardCreator->shouldNotReceive('create');
-        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Неподдерживаемый тип сообщения');
 
         $this->processor->process(1);
     }
 
     /**
-     * Routing не нашёл правила — markProcessed вызывается, Trello не вызывается.
+     * Routing не нашёл правила — markSkipped вызывается, Trello не вызывается.
      */
-    public function test_marks_processed_when_no_routing_match(): void
+    public function test_marks_skipped_when_no_routing_match(): void
     {
         $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
         $this->parser->shouldReceive('parse')->once()->andReturn($this->makeMessageDTO());
         $this->routing->shouldReceive('resolve')->once()->andReturn(null);
         $this->cardCreator->shouldNotReceive('create');
-        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Правило маршрутизации не найдено');
 
         $this->processor->process(1);
     }

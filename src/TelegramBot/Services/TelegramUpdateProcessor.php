@@ -46,7 +46,7 @@ class TelegramUpdateProcessor
         $dto = $this->parser->parse($payload);
 
         if ($dto === null) {
-            $this->repository->markProcessed($telegramMessageId);
+            $this->repository->markSkipped($telegramMessageId, 'Неподдерживаемый тип сообщения');
 
             return;
         }
@@ -54,7 +54,7 @@ class TelegramUpdateProcessor
         $routingResult = $this->routing->resolve($dto);
 
         if ($routingResult === null) {
-            $this->repository->markProcessed($telegramMessageId);
+            $this->repository->markSkipped($telegramMessageId, 'Правило маршрутизации не найдено');
 
             return;
         }

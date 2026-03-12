@@ -3,8 +3,8 @@
 namespace App\Filament\Admin\Resources\TelegramMessages\Tables;
 
 use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
@@ -33,17 +33,43 @@ class TelegramMessagesTable
                     ->placeholder('—')
                     ->limit(80)
                     ->searchable(),
-                IconColumn::make('processed_at')
-                    ->label('Обработано')
-                    ->boolean()
-                    ->getStateUsing(fn ($record) => $record->processed_at !== null),
+                TextColumn::make('processing_status')
+                    ->label('Статус')
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'success' => 'success',
+                        'skipped' => 'warning',
+                        'failed' => 'danger',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state) => match ($state) {
+                        'pending' => 'Ожидает',
+                        'skipped' => 'Пропущено',
+                        'success' => 'Успех',
+                        'failed' => 'Ошибка',
+                        default => $state,
+                    }),
+                TextColumn::make('processing_notes')
+                    ->label('Причина')
+                    ->placeholder('—')
+                    ->limit(50)
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('received_at')
                     ->label('Получено')
                     ->dateTime('d.m.Y H:i')
                     ->sortable(),
             ])
             ->defaultSort('received_at', 'desc')
+            ->poll('5s')
             ->filters([
+                SelectFilter::make('processing_status')
+                    ->label('Статус')
+                    ->options([
+                        'pending' => 'Ожидает',
+                        'skipped' => 'Пропущено',
+                        'success' => 'Успех',
+                        'failed' => 'Ошибка',
+                    ]),
                 TernaryFilter::make('processed')
                     ->label('Обработанные')
                     ->nullable()

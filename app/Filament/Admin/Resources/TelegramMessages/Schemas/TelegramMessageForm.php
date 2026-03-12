@@ -21,8 +21,25 @@ class TelegramMessageForm
                 TextInput::make('chat_id')->label('Chat ID')->disabled(),
                 TextInput::make('received_at')->label('Получено')->disabled(),
                 TextInput::make('processed_at')->label('Обработано')->disabled(),
+                TextInput::make('processing_status')
+                    ->label('Статус обработки')
+                    ->disabled(),
+                TextInput::make('processing_notes')
+                    ->label('Заметки обработки')
+                    ->disabled()
+                    ->placeholder('—'),
                 Textarea::make('text')->label('Текст')->disabled()->rows(4)->columnSpanFull(),
                 Textarea::make('caption')->label('Подпись (фото)')->disabled()->rows(2)->columnSpanFull(),
+                Textarea::make('payload_json')
+                    ->label('Сырой payload (JSON)')
+                    ->disabled()
+                    ->rows(20)
+                    ->columnSpanFull()
+                    ->formatStateUsing(
+                        fn (mixed $state) => is_array($state)
+                            ? json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                            : $state
+                    ),
             ]);
     }
 }

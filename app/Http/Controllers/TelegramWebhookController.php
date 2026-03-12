@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TelegramWebhookRequest;
 use App\Jobs\ProcessTelegramUpdateJob;
 use Illuminate\Http\JsonResponse;
+use TelegramBot\Contracts\RequestLogRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 
 /**
@@ -19,9 +20,12 @@ final class TelegramWebhookController extends Controller
 {
     public function handle(
         TelegramWebhookRequest $request,
+        RequestLogRepositoryInterface $requestLog,
         TelegramMessageRepositoryInterface $repository,
     ): JsonResponse {
         $payload = $request->all();
+
+        $requestLog->log($payload);
 
         // Обрабатываем только обычные сообщения (message).
         // inline_query, edited_message, channel_post и прочие типы игнорируем —

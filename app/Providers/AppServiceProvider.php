@@ -11,6 +11,7 @@ use Illuminate\Support\ServiceProvider;
 use Telegram\Bot\Api;
 use TelegramBot\Adapters\TrelloAdapter;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
+use TelegramBot\Contracts\RequestLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
@@ -19,6 +20,7 @@ use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\Parsers\TelegramUpdateParser;
+use TelegramBot\Repositories\EloquentRequestLogRepository;
 use TelegramBot\Repositories\EloquentRoutingRuleRepository;
 use TelegramBot\Repositories\EloquentTelegramFileRepository;
 use TelegramBot\Repositories\EloquentTelegramMessageRepository;
@@ -36,6 +38,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Парсер входящих Telegram update — не имеет зависимостей
         $this->app->bind(UpdateParserInterface::class, TelegramUpdateParser::class);
+
+        // Репозиторий сырых входящих запросов (request log)
+        $this->app->bind(RequestLogRepositoryInterface::class, EloquentRequestLogRepository::class);
 
         // Репозиторий входящих Telegram update
         $this->app->bind(TelegramMessageRepositoryInterface::class, EloquentTelegramMessageRepository::class);
