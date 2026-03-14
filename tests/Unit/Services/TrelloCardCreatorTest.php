@@ -9,6 +9,7 @@ use Mockery\MockInterface;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\DTOs\CreatedCardResult;
+use TelegramBot\DTOs\DownloadedFile;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\DTOs\TrelloCardDTO;
@@ -191,7 +192,7 @@ class TrelloCardCreatorTest extends TestCase
             ->shouldReceive('download')
             ->once()
             ->with('photo-file-id', 1)
-            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+            ->andReturn(new DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
 
         $this->adapter
             ->shouldReceive('attachFile')
@@ -232,7 +233,7 @@ class TrelloCardCreatorTest extends TestCase
             ->shouldReceive('download')
             ->once()
             ->with('doc-file-id', 1)
-            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/file.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+            ->andReturn(new DownloadedFile('/tmp/file.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
 
         $this->adapter
             ->shouldReceive('attachFile')
@@ -318,7 +319,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->fileDownloader
             ->shouldReceive('download')
             ->with('good-file-id', 1)
-            ->andReturn(new \TelegramBot\DTOs\DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+            ->andReturn(new DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
 
         $this->adapter
             ->shouldReceive('attachFile')

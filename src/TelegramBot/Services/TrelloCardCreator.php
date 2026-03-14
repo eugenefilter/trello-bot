@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace TelegramBot\Services;
 
+use Illuminate\Support\Facades\Log;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\DTOs\TrelloCardDTO;
-use Illuminate\Support\Facades\Log;
 use TelegramBot\Exceptions\TrelloAuthException;
 use TelegramBot\Exceptions\TrelloConnectionException;
 use TelegramBot\Exceptions\TrelloValidationException;

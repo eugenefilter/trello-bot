@@ -49,7 +49,7 @@ class TelegramUpdateProcessor
     ) {}
 
     /**
-     * @throws \Throwable при ошибке Trello — Job уйдёт в retry
+     * @throws Throwable при ошибке Trello — Job уйдёт в retry
      */
     public function process(int $telegramMessageId): void
     {
