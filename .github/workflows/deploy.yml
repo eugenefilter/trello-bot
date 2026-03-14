@@ -153,6 +153,7 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" "cd '$SSH_PATH' && \
             /opt/php84/bin/php /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction && \
             /opt/php84/bin/php artisan migrate --force && \
+            /opt/php84/bin/php artisan filament:assets && \
             /opt/php84/bin/php artisan config:cache && \
             /opt/php84/bin/php artisan route:cache && \
             /opt/php84/bin/php artisan view:cache && \
