@@ -140,7 +140,7 @@ jobs:
 
       - name: Sync files to server
         run: |
-          rsync -az --delete \
+          rsync -az --delete --no-owner --no-group \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='tests' \
