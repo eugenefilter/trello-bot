@@ -151,10 +151,10 @@ jobs:
       - name: Deploy on server
         run: |
           ssh "$SSH_USER@$SSH_HOST" "cd '$SSH_PATH' && \
-            composer install --no-dev --optimize-autoloader --no-interaction && \
-            php artisan migrate --force && \
-            php artisan config:cache && \
-            php artisan route:cache && \
-            php artisan view:cache && \
-            php artisan horizon:terminate && \
-            php artisan queue:restart"
+            /opt/php84/bin/php /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction && \
+            /opt/php84/bin/php artisan migrate --force && \
+            /opt/php84/bin/php artisan config:cache && \
+            /opt/php84/bin/php artisan route:cache && \
+            /opt/php84/bin/php artisan view:cache && \
+            /opt/php84/bin/php artisan horizon:terminate && \
+            /opt/php84/bin/php artisan queue:restart"
