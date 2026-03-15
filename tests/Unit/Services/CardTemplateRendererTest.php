@@ -6,6 +6,7 @@ namespace Tests\Unit\Services;
 
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
+use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Services\CardTemplateRenderer;
 
@@ -201,7 +202,7 @@ class CardTemplateRendererTest extends TestCase
      */
     public function test_renders_reply_text_from_reply_caption(): void
     {
-        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+        $reply = new ReplyMessageDTO(
             text: null,
             caption: 'на укр версії не все так однозначно',
             photos: [],
@@ -218,7 +219,7 @@ class CardTemplateRendererTest extends TestCase
      */
     public function test_renders_reply_text_from_reply_text(): void
     {
-        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+        $reply = new ReplyMessageDTO(
             text: 'Оригинальный текст поста',
             caption: null,
             photos: [],
@@ -247,7 +248,7 @@ class CardTemplateRendererTest extends TestCase
         ?string $caption = null,
         ?string $firstName = 'Иван',
         ?string $command = null,
-        ?\TelegramBot\DTOs\ReplyMessageDTO $replyToMessage = null,
+        ?ReplyMessageDTO $replyToMessage = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'text',
