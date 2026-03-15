@@ -82,6 +82,16 @@ class TelegramUpdateProcessor
             return;
         }
 
+        if ($dto->isCommand() && ! $this->commandHasContent($dto)) {
+            $this->telegram->sendMessage(
+                $dto->chatId,
+                '⚠️ Не удалось создать карточку. Добавьте описание или ответьте на сообщение с контентом.',
+            );
+            $this->repository->markSkipped($telegramMessageId, 'Команда без контента');
+
+            return;
+        }
+
         $rendered = new RoutingResultDTO(
             listId: $routingResult->listId,
             listName: $routingResult->listName,
@@ -144,6 +154,26 @@ class TelegramUpdateProcessor
                 ]);
             }
         }
+    }
+
+    /**
+     * Есть ли полезный контент для команды: текст после команды или reply_to_message.
+     * Текст считается реальным только если содержит хотя бы одну букву (Unicode).
+     * Только цифры, символы или их комбинация без букв — не считается контентом.
+     * Файлы без текста и без reply также считаются недостаточным контентом.
+     */
+    private function commandHasContent(TelegramMessageDTO $dto): bool
+    {
+        $raw = $dto->text ?? $dto->caption ?? '';
+        $textAfterCommand = $dto->command !== null
+            ? trim(mb_substr($raw, mb_strlen($dto->command)))
+            : $raw;
+
+        if (preg_match('/\p{L}/u', $textAfterCommand)) {
+            return true;
+        }
+
+        return $dto->replyToMessage !== null;
     }
 
     private function buildReplyText(string $listName, string $cardUrl): string
