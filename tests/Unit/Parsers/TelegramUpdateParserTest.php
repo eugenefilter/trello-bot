@@ -227,6 +227,42 @@ class TelegramUpdateParserTest extends TestCase
         ];
     }
 
+    /**
+     * reply_to_message с фото и caption → replyToMessage заполнен.
+     */
+    public function test_extracts_reply_to_message_with_photo_and_caption(): void
+    {
+        $dto = $this->parser->parse($this->replyToPhotoUpdate());
+
+        $this->assertNotNull($dto->replyToMessage);
+        $this->assertSame('на укр версії не все так однозначно', $dto->replyToMessage->caption);
+        $this->assertNull($dto->replyToMessage->text);
+        $this->assertSame('reply_file_id_large', $dto->replyToMessage->photos[0]);
+    }
+
+    /**
+     * reply_to_message с текстом → replyToMessage->text заполнен.
+     */
+    public function test_extracts_reply_to_message_with_text(): void
+    {
+        $dto = $this->parser->parse($this->replyToTextUpdate('Исходный текст поста'));
+
+        $this->assertNotNull($dto->replyToMessage);
+        $this->assertSame('Исходный текст поста', $dto->replyToMessage->text);
+        $this->assertNull($dto->replyToMessage->caption);
+        $this->assertEmpty($dto->replyToMessage->photos);
+    }
+
+    /**
+     * Без reply_to_message → replyToMessage равен null.
+     */
+    public function test_reply_to_message_is_null_when_absent(): void
+    {
+        $dto = $this->parser->parse($this->textUpdate('Hello'));
+
+        $this->assertNull($dto->replyToMessage);
+    }
+
     public function test_extracts_media_group_id_when_present(): void
     {
         $update = $this->photoUpdate();
@@ -242,6 +278,61 @@ class TelegramUpdateParserTest extends TestCase
         $dto = $this->parser->parse($this->textUpdate('Hello'));
 
         $this->assertNull($dto->mediaGroupId);
+    }
+
+    /** Сообщение-ответ на пост с фото — как в реальном update от пользователя */
+    private function replyToPhotoUpdate(): array
+    {
+        return [
+            'update_id' => 294206881,
+            'message' => [
+                'message_id' => 6368,
+                'from' => ['id' => 111111, 'username' => 'testuser', 'first_name' => 'Test'],
+                'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                'date' => 1773319167,
+                'reply_to_message' => [
+                    'message_id' => 6352,
+                    'from' => ['id' => 327010592, 'username' => 'Chiz_Han', 'first_name' => 'Anton'],
+                    'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                    'date' => 1773145361,
+                    'photo' => [
+                        ['file_id' => 'reply_file_id_small',  'file_unique_id' => 'r1', 'width' => 90,   'height' => 51],
+                        ['file_id' => 'reply_file_id_medium', 'file_unique_id' => 'r2', 'width' => 320,  'height' => 183],
+                        ['file_id' => 'reply_file_id_large',  'file_unique_id' => 'r3', 'width' => 1280, 'height' => 731],
+                    ],
+                    'caption' => 'на укр версії не все так однозначно',
+                ],
+                'text' => '/bug Нет перевода на украинский',
+                'entities' => [
+                    ['offset' => 0, 'length' => 4, 'type' => 'bot_command'],
+                ],
+            ],
+        ];
+    }
+
+    /** Сообщение-ответ на текстовый пост */
+    private function replyToTextUpdate(string $replyText): array
+    {
+        return [
+            'update_id' => 100,
+            'message' => [
+                'message_id' => 200,
+                'from' => ['id' => 111111, 'username' => 'testuser', 'first_name' => 'Test'],
+                'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                'date' => 1773319167,
+                'reply_to_message' => [
+                    'message_id' => 199,
+                    'from' => ['id' => 999, 'username' => 'author', 'first_name' => 'Author'],
+                    'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                    'date' => 1773145361,
+                    'text' => $replyText,
+                ],
+                'text' => '/bug описание бага',
+                'entities' => [
+                    ['offset' => 0, 'length' => 4, 'type' => 'bot_command'],
+                ],
+            ],
+        ];
     }
 
     private function photoUpdate(?string $caption = null): array

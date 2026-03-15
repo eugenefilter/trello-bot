@@ -346,6 +346,53 @@ class TrelloCardCreatorTest extends TestCase
         $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
     }
 
+    /**
+     * Фото из reply_to_message тоже прикрепляются к карточке.
+     */
+    public function test_attaches_photos_from_reply_message(): void
+    {
+        $this->adapter
+            ->shouldReceive('createCard')
+            ->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+
+        $this->fileDownloader
+            ->shouldReceive('download')
+            ->with('reply-photo-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/reply_photo.jpg', 'image/jpeg'));
+
+        $this->adapter
+            ->shouldReceive('attachFile')
+            ->once()
+            ->with('card-1', '/tmp/reply_photo.jpg', 'image/jpeg');
+
+        $this->cardLog->shouldReceive('logSuccess')->once();
+
+        $replyMessage = new \TelegramBot\DTOs\ReplyMessageDTO(
+            text: null,
+            caption: 'на укр версії не все так однозначно',
+            photos: ['reply-photo-id'],
+        );
+
+        $message = new TelegramMessageDTO(
+            messageType: 'command',
+            text: '/bug Нет перевода',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 111111,
+            chatId: '222222',
+            chatType: 'supergroup',
+            command: '/bug',
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new \DateTimeImmutable('2024-01-01 12:00:00'),
+            replyToMessage: $replyMessage,
+        );
+
+        $this->creator->create($message, $this->routingDTO(), telegramMessageId: 1);
+    }
+
     // --- Fixtures ---
 
     private function messageDTO(): TelegramMessageDTO

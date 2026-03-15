@@ -58,8 +58,9 @@ class TrelloCardCreator
                 labelIds: $routing->labelIds,
             ));
 
-            // Прикрепляем фото и документы к карточке
-            foreach ([...$message->photos, ...$message->documents] as $fileId) {
+            // Прикрепляем фото и документы из основного сообщения и из цитируемого
+            $replyPhotos = $message->replyToMessage?->photos ?? [];
+            foreach ([...$message->photos, ...$message->documents, ...$replyPhotos] as $fileId) {
                 try {
                     $file = $this->fileDownloader->download($fileId, $telegramMessageId);
                     $this->trello->attachFile($result->id, $file->localPath, $file->mimeType);

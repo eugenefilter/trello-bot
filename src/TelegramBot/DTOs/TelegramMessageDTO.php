@@ -19,6 +19,7 @@ class TelegramMessageDTO
      * @param  string  $chatType  Тип чата: private | group | supergroup | channel
      * @param  string|null  $command  Команда бота: /start | /bug | /task | null если не команда
      * @param  string|null  $mediaGroupId  ID группы медиафайлов (если сообщение часть media group)
+     * @param  ReplyMessageDTO|null  $replyToMessage  Данные цитируемого сообщения (если есть reply_to_message)
      */
     public function __construct(
         public string $messageType,
@@ -34,6 +35,7 @@ class TelegramMessageDTO
         public ?string $firstName,
         public \DateTimeImmutable $sentAt,
         public ?string $mediaGroupId = null,
+        public ?ReplyMessageDTO $replyToMessage = null,
     ) {}
 
     /**

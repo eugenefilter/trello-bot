@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TelegramBot\Parsers;
 
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 
 /**
@@ -50,6 +51,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             firstName: $message['from']['first_name'] ?? null,
             sentAt: new \DateTimeImmutable('@'.$message['date']),
             mediaGroupId: $message['media_group_id'] ?? null,
+            replyToMessage: $this->extractReplyMessage($message),
         );
     }
 
@@ -121,6 +123,24 @@ class TelegramUpdateParser implements UpdateParserInterface
         $largest = end($photoSizes);
 
         return [$largest['file_id']];
+    }
+
+    /**
+     * Извлекает данные цитируемого сообщения (reply_to_message).
+     */
+    private function extractReplyMessage(array $message): ?ReplyMessageDTO
+    {
+        $reply = $message['reply_to_message'] ?? null;
+
+        if ($reply === null) {
+            return null;
+        }
+
+        return new ReplyMessageDTO(
+            text: $reply['text'] ?? null,
+            caption: $reply['caption'] ?? null,
+            photos: $this->extractPhotos($reply),
+        );
     }
 
     /**
