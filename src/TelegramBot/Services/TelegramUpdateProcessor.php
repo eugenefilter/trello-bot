@@ -166,6 +166,9 @@ class TelegramUpdateProcessor
             ? trim(mb_substr($raw, mb_strlen($dto->command)))
             : $raw;
 
+        // Убираем @botname суффикс (/bug@itsell_trello_bot → пустая строка)
+        $textAfterCommand = trim(preg_replace('/^@\w+/', '', $textAfterCommand));
+
         if (preg_match('/\p{L}/u', $textAfterCommand)) {
             return true;
         }

@@ -273,6 +273,23 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
+     * /bug@botname без текста и без reply → карточка не создаётся.
+     */
+    public function test_command_with_botname_suffix_and_no_text_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug@itsell_trello_bot', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
      * Команда с текстом из одних символов → карточка не создаётся.
      */
     public function test_command_with_only_symbols_marks_skipped(): void
