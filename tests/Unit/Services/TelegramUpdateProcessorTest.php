@@ -588,6 +588,26 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
+     * Пользователь с language_code=en получает ответ на английском.
+     */
+    public function test_reply_is_in_english_for_en_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'en');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'description'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
      * Неизвестный language_code → fallback на украинский.
      */
     public function test_unknown_language_falls_back_to_ukrainian(): void

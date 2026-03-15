@@ -187,7 +187,7 @@ class TelegramUpdateProcessor
      */
     private function resolveLocale(?string $languageCode): string
     {
-        return in_array($languageCode, ['ru', 'uk', 'pl'], strict: true)
+        return in_array($languageCode, ['en', 'ru', 'uk', 'pl'], strict: true)
             ? $languageCode
             : 'uk';
     }
