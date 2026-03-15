@@ -7,7 +7,7 @@ namespace Tests\Unit\Services;
 use DateTimeImmutable;
 use Mockery;
 use Mockery\MockInterface;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -231,6 +231,157 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
+     * Команда без текста и без reply_to_message → карточка не создаётся, пользователю уведомление.
+     */
+    public function test_command_without_content_notifies_user_and_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text) {
+                return $chatId === '100' && str_contains($text, 'опис');
+            });
+
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда с только фото (без текста, без reply) → карточка не создаётся, уведомление.
+     */
+    public function test_command_with_only_photos_and_no_text_notifies_user_and_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: null, command: '/bug', photos: ['photo-id']);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда с текстом из одних символов → карточка не создаётся.
+     */
+    public function test_command_with_only_symbols_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug !!!---...', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда с текстом из одних цифр → карточка не создаётся.
+     */
+    public function test_command_with_only_digits_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug 12345', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда с текстом из символов и цифр → карточка не создаётся.
+     */
+    public function test_command_with_only_symbols_and_digits_marks_skipped(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug #123 !!!', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда с реальным текстом → карточка создаётся.
+     */
+    public function test_command_with_real_text_creates_card(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug кнопка не работает', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Текст с буквами + цифры + символы → карточка создаётся.
+     */
+    public function test_command_with_mixed_text_and_symbols_creates_card(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug баг #123 !!!', command: '/bug');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда без текста, но с reply_to_message → карточка создаётся.
+     */
+    public function test_command_without_text_but_with_reply_creates_card(): void
+    {
+        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+            text: 'Текст цитируемого поста',
+            caption: null,
+            photos: [],
+        );
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', replyToMessage: $reply);
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
      * Первый update медиагруппы без существующей карточки →
      * обычный флоу создания карточки.
      */
@@ -372,6 +523,146 @@ class TelegramUpdateProcessorTest extends TestCase
             firstName: 'Test',
             sentAt: new DateTimeImmutable,
             mediaGroupId: 'group-123',
+        );
+    }
+
+    /**
+     * Пользователь с language_code=ru получает ответ на русском.
+     */
+    public function test_reply_is_in_russian_for_ru_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'ru');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'описание'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Пользователь с language_code=uk получает ответ на украинском.
+     */
+    public function test_reply_is_in_ukrainian_for_uk_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'uk');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Пользователь с language_code=pl получает ответ на польском.
+     */
+    public function test_reply_is_in_polish_for_pl_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'pl');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'opis'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Неизвестный language_code → fallback на украинский.
+     */
+    public function test_unknown_language_falls_back_to_ukrainian(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'de');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Карточка создана — сообщение успеха на языке пользователя (uk).
+     */
+    public function test_card_created_message_uses_user_language(): void
+    {
+        $dto = new TelegramMessageDTO(
+            messageType: 'text',
+            text: 'баг знайдено',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            languageCode: 'uk',
+        );
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'створено'));
+        $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    private function makeCommandDTO(
+        ?string $text,
+        string $command,
+        array $photos = [],
+        ?\TelegramBot\DTOs\ReplyMessageDTO $replyToMessage = null,
+        ?string $languageCode = null,
+    ): TelegramMessageDTO {
+        return new TelegramMessageDTO(
+            messageType: 'command',
+            text: $text,
+            caption: null,
+            photos: $photos,
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: $command,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            replyToMessage: $replyToMessage,
+            languageCode: $languageCode,
         );
     }
 

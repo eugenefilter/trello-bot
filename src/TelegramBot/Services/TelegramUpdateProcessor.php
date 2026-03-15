@@ -16,7 +16,6 @@ use Throwable;
 
 /**
  * Оркестрирует обработку одного Telegram update.
- *
  * Порядок для обычного сообщения:
  *   1. Загружает payload из репозитория
  *   2. Парсит payload → TelegramMessageDTO (null = неподдерживаемый тип)
@@ -25,13 +24,11 @@ use Throwable;
  *   5. Создаёт карточку в Trello
  *   6. Отправляет подтверждение пользователю через Telegram
  *   7. Помечает сообщение как обработанное
- *
  * Для "догоняющего" update медиагруппы (карточка уже создана):
  *   1-2. Парсит payload
  *   3. Находит существующую карточку по media_group_id
  *   4. Скачивает и прикрепляет файлы к существующей карточке
  *   5. Помечает сообщение как обработанное (без reply и без новой карточки)
- *
  * При исключении из TrelloCardCreator markProcessed не вызывается —
  * Job повторит обработку согласно политике retry.
  */
@@ -82,6 +79,16 @@ class TelegramUpdateProcessor
             return;
         }
 
+        if ($dto->isCommand() && ! $this->commandHasContent($dto)) {
+            $this->telegram->sendMessage(
+                $dto->chatId,
+                trans('bot.no_content', [], $this->resolveLocale($dto->languageCode)),
+            );
+            $this->repository->markSkipped($telegramMessageId, 'Команда без контента');
+
+            return;
+        }
+
         $rendered = new RoutingResultDTO(
             listId: $routingResult->listId,
             listName: $routingResult->listName,
@@ -95,7 +102,7 @@ class TelegramUpdateProcessor
 
         $this->telegram->sendMessage(
             $dto->chatId,
-            $this->buildReplyText($rendered->listName, $result->url),
+            $this->buildReplyText($rendered->listName, $result->url, $dto->languageCode),
             ['parse_mode' => 'HTML'],
         );
 
@@ -146,8 +153,42 @@ class TelegramUpdateProcessor
         }
     }
 
-    private function buildReplyText(string $listName, string $cardUrl): string
+    /**
+     * Есть ли полезный контент для команды: текст после команды или reply_to_message.
+     * Текст считается реальным только если содержит хотя бы одну букву (Unicode).
+     * Только цифры, символы или их комбинация без букв — не считается контентом.
+     * Файлы без текста и без reply также считаются недостаточным контентом.
+     */
+    private function commandHasContent(TelegramMessageDTO $dto): bool
     {
-        return "✅ Карточка создана\n\nКолонка: {$listName}\n<a href=\"{$cardUrl}\">Ссылка на карточку</a>";
+        $raw = $dto->text ?? $dto->caption ?? '';
+        $textAfterCommand = $dto->command !== null
+            ? trim(mb_substr($raw, mb_strlen($dto->command)))
+            : $raw;
+
+        if (preg_match('/\p{L}/u', $textAfterCommand)) {
+            return true;
+        }
+
+        return $dto->replyToMessage !== null;
+    }
+
+    private function buildReplyText(string $listName, string $cardUrl, ?string $languageCode): string
+    {
+        return trans('bot.card_created', [
+            'list' => $listName,
+            'url' => $cardUrl,
+        ], $this->resolveLocale($languageCode));
+    }
+
+    /**
+     * Маппит Telegram language_code на поддерживаемую локаль.
+     * Fallback — английский.
+     */
+    private function resolveLocale(?string $languageCode): string
+    {
+        return in_array($languageCode, ['ru', 'uk', 'pl'], strict: true)
+            ? $languageCode
+            : 'uk';
     }
 }

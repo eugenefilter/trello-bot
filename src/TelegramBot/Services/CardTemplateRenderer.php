@@ -37,6 +37,9 @@ Telegram user id: {{user_id}}
 
 Текст:
 {{text}}
+
+Цитируемое сообщение:
+{{reply_text}}
 TPL;
 
     public function render(string $template, TelegramMessageDTO $message): string
@@ -55,6 +58,7 @@ TPL;
             '{{text_preview}}' => mb_substr($text, 0, 80),
             '{{text}}' => $text,
             '{{chat_type}}' => $message->chatType,
+            '{{reply_text}}' => $message->replyToMessage?->getText() ?? '',
         ];
 
         return str_replace(array_keys($vars), array_values($vars), $template);

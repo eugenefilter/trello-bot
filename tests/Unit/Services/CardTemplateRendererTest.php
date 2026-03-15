@@ -196,6 +196,50 @@ class CardTemplateRendererTest extends TestCase
         $this->assertSame('', $this->renderer->render('{{text}}', $dto));
     }
 
+    /**
+     * {{reply_text}} заменяется caption из reply_to_message.
+     */
+    public function test_renders_reply_text_from_reply_caption(): void
+    {
+        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+            text: null,
+            caption: 'на укр версії не все так однозначно',
+            photos: [],
+        );
+        $dto = $this->makeDTO(replyToMessage: $reply);
+
+        $result = $this->renderer->render('Цитата: {{reply_text}}', $dto);
+
+        $this->assertSame('Цитата: на укр версії не все так однозначно', $result);
+    }
+
+    /**
+     * {{reply_text}} заменяется text из reply_to_message.
+     */
+    public function test_renders_reply_text_from_reply_text(): void
+    {
+        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+            text: 'Оригинальный текст поста',
+            caption: null,
+            photos: [],
+        );
+        $dto = $this->makeDTO(replyToMessage: $reply);
+
+        $result = $this->renderer->render('{{reply_text}}', $dto);
+
+        $this->assertSame('Оригинальный текст поста', $result);
+    }
+
+    /**
+     * {{reply_text}} пустой когда нет replyToMessage.
+     */
+    public function test_reply_text_is_empty_when_no_reply(): void
+    {
+        $result = $this->renderer->render('Цитата: {{reply_text}}', $this->makeDTO());
+
+        $this->assertSame('Цитата: ', $result);
+    }
+
     // --- Fixtures ---
 
     private function makeDTO(
@@ -203,6 +247,7 @@ class CardTemplateRendererTest extends TestCase
         ?string $caption = null,
         ?string $firstName = 'Иван',
         ?string $command = null,
+        ?\TelegramBot\DTOs\ReplyMessageDTO $replyToMessage = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'text',
@@ -217,6 +262,7 @@ class CardTemplateRendererTest extends TestCase
             username: 'ivanov',
             firstName: $firstName,
             sentAt: new DateTimeImmutable('2024-06-15 14:30:00'),
+            replyToMessage: $replyToMessage,
         );
     }
 }
