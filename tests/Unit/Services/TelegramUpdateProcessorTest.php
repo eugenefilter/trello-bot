@@ -7,7 +7,7 @@ namespace Tests\Unit\Services;
 use DateTimeImmutable;
 use Mockery;
 use Mockery\MockInterface;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -246,7 +246,7 @@ class TelegramUpdateProcessorTest extends TestCase
             ->shouldReceive('sendMessage')
             ->once()
             ->withArgs(function (string $chatId, string $text) {
-                return $chatId === '100' && str_contains($text, 'описание');
+                return $chatId === '100' && str_contains($text, 'опис');
             });
 
         $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Команда без контента');
@@ -526,11 +526,127 @@ class TelegramUpdateProcessorTest extends TestCase
         );
     }
 
+    /**
+     * Пользователь с language_code=ru получает ответ на русском.
+     */
+    public function test_reply_is_in_russian_for_ru_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'ru');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'описание'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Пользователь с language_code=uk получает ответ на украинском.
+     */
+    public function test_reply_is_in_ukrainian_for_uk_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'uk');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Пользователь с language_code=pl получает ответ на польском.
+     */
+    public function test_reply_is_in_polish_for_pl_user(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'pl');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'opis'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Неизвестный language_code → fallback на украинский.
+     */
+    public function test_unknown_language_falls_back_to_ukrainian(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug', command: '/bug', languageCode: 'de');
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldNotReceive('create');
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+        $this->repository->shouldReceive('markSkipped')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Карточка создана — сообщение успеха на языке пользователя (uk).
+     */
+    public function test_card_created_message_uses_user_language(): void
+    {
+        $dto = new TelegramMessageDTO(
+            messageType: 'text',
+            text: 'баг знайдено',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            languageCode: 'uk',
+        );
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn($chatId, $text) => str_contains($text, 'створено'));
+        $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
     private function makeCommandDTO(
         ?string $text,
         string $command,
         array $photos = [],
         ?\TelegramBot\DTOs\ReplyMessageDTO $replyToMessage = null,
+        ?string $languageCode = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'command',
@@ -546,6 +662,7 @@ class TelegramUpdateProcessorTest extends TestCase
             firstName: 'Test',
             sentAt: new DateTimeImmutable,
             replyToMessage: $replyToMessage,
+            languageCode: $languageCode,
         );
     }
 

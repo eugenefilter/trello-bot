@@ -52,6 +52,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             sentAt: new \DateTimeImmutable('@'.$message['date']),
             mediaGroupId: $message['media_group_id'] ?? null,
             replyToMessage: $this->extractReplyMessage($message),
+            languageCode: $message['from']['language_code'] ?? null,
         );
     }
 

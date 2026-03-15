@@ -228,6 +228,29 @@ class TelegramUpdateParserTest extends TestCase
     }
 
     /**
+     * language_code пользователя извлекается из from.language_code.
+     */
+    public function test_extracts_language_code(): void
+    {
+        $update = $this->textUpdate('hi');
+        $update['message']['from']['language_code'] = 'uk';
+
+        $dto = $this->parser->parse($update);
+
+        $this->assertSame('uk', $dto->languageCode);
+    }
+
+    /**
+     * Отсутствие language_code → null.
+     */
+    public function test_language_code_is_null_when_absent(): void
+    {
+        $dto = $this->parser->parse($this->textUpdate('hi'));
+
+        $this->assertNull($dto->languageCode);
+    }
+
+    /**
      * reply_to_message с фото и caption → replyToMessage заполнен.
      */
     public function test_extracts_reply_to_message_with_photo_and_caption(): void
