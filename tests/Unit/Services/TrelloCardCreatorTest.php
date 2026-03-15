@@ -10,6 +10,7 @@ use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\DownloadedFile;
+use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\DTOs\TrelloCardDTO;
@@ -368,7 +369,7 @@ class TrelloCardCreatorTest extends TestCase
 
         $this->cardLog->shouldReceive('logSuccess')->once();
 
-        $replyMessage = new \TelegramBot\DTOs\ReplyMessageDTO(
+        $replyMessage = new ReplyMessageDTO(
             text: null,
             caption: 'на укр версії не все так однозначно',
             photos: ['reply-photo-id'],

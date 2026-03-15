@@ -7,7 +7,6 @@ namespace Tests\Unit\Services;
 use DateTimeImmutable;
 use Mockery;
 use Mockery\MockInterface;
-use Tests\TestCase;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -15,6 +14,7 @@ use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\DownloadedFile;
+use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Exceptions\TrelloConnectionException;
@@ -22,6 +22,7 @@ use TelegramBot\Services\CardTemplateRenderer;
 use TelegramBot\Services\TelegramFileDownloader;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use TelegramBot\Services\TrelloCardCreator;
+use Tests\TestCase;
 
 /**
  * Unit-тест TelegramUpdateProcessor.
@@ -363,7 +364,7 @@ class TelegramUpdateProcessorTest extends TestCase
      */
     public function test_command_without_text_but_with_reply_creates_card(): void
     {
-        $reply = new \TelegramBot\DTOs\ReplyMessageDTO(
+        $reply = new ReplyMessageDTO(
             text: 'Текст цитируемого поста',
             caption: null,
             photos: [],
@@ -540,7 +541,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()
-            ->withArgs(fn($chatId, $text) => str_contains($text, 'описание'));
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'описание'));
         $this->repository->shouldReceive('markSkipped')->once();
 
         $this->processor->process(1);
@@ -560,7 +561,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()
-            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'опис'));
         $this->repository->shouldReceive('markSkipped')->once();
 
         $this->processor->process(1);
@@ -580,7 +581,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()
-            ->withArgs(fn($chatId, $text) => str_contains($text, 'opis'));
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'opis'));
         $this->repository->shouldReceive('markSkipped')->once();
 
         $this->processor->process(1);
@@ -600,7 +601,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()
-            ->withArgs(fn($chatId, $text) => str_contains($text, 'опис'));
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'опис'));
         $this->repository->shouldReceive('markSkipped')->once();
 
         $this->processor->process(1);
@@ -635,7 +636,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()
-            ->withArgs(fn($chatId, $text) => str_contains($text, 'створено'));
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'створено'));
         $this->repository->shouldReceive('markProcessed')->once();
 
         $this->processor->process(1);
@@ -645,7 +646,7 @@ class TelegramUpdateProcessorTest extends TestCase
         ?string $text,
         string $command,
         array $photos = [],
-        ?\TelegramBot\DTOs\ReplyMessageDTO $replyToMessage = null,
+        ?ReplyMessageDTO $replyToMessage = null,
         ?string $languageCode = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
