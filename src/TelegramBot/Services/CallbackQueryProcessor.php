@@ -5,23 +5,23 @@ declare(strict_types=1);
 namespace TelegramBot\Services;
 
 use Illuminate\Support\Facades\Log;
-use TelegramBot\Contracts\TelegramAdapterInterface;
-use TelegramBot\Contracts\TrelloAdapterInterface;
+use TelegramBot\CallbackHandlers\CallbackActionHandlerInterface;
 use TelegramBot\DTOs\CallbackAction;
 use TelegramBot\DTOs\TelegramCallbackDTO;
-use Throwable;
 
 /**
- * Обрабатывает callback_query от inline-кнопок.
+ * Роутер callback_query: парсит action и делегирует зарегистрированному хэндлеру.
  *
- * Поддерживаемые действия:
- *   - delete:{shortLink} — удаляет карточку Trello
+ * Хэндлеры регистрируются через конструктор в виде map ['action' => handler].
+ * Добавление нового действия = новый класс-хэндлер + одна строка в AppServiceProvider.
  */
 class CallbackQueryProcessor
 {
+    /**
+     * @param  array<string, CallbackActionHandlerInterface>  $handlers
+     */
     public function __construct(
-        private readonly TelegramAdapterInterface $telegram,
-        private readonly TrelloAdapterInterface $trello,
+        private readonly array $handlers,
     ) {}
 
     public function process(TelegramCallbackDTO $dto): void
@@ -34,50 +34,17 @@ class CallbackQueryProcessor
             return;
         }
 
-        match ($action->action) {
-            'delete' => $this->handleDelete($dto, $action->payload),
-            default => $this->handleUnknown($dto, $action->action),
-        };
-    }
+        $handler = $this->handlers[$action->action] ?? null;
 
-    private function handleDelete(TelegramCallbackDTO $dto, string $shortLink): void
-    {
-        $locale = $this->resolveLocale($dto->languageCode);
-
-        try {
-            $this->trello->deleteCard($shortLink);
-        } catch (Throwable $e) {
-            $this->telegram->answerCallbackQuery(
-                $dto->callbackId,
-                trans('bot.card_delete_failed', [], $locale),
-            );
+        if ($handler === null) {
+            Log::warning('CallbackQueryProcessor: unknown action', [
+                'action' => $action->action,
+                'callback_id' => $dto->callbackId,
+            ]);
 
             return;
         }
 
-        $this->telegram->answerCallbackQuery(
-            $dto->callbackId,
-            trans('bot.card_deleted', [], $locale),
-        );
-
-        $this->telegram->removeInlineKeyboard($dto->chatId, $dto->messageId);
-    }
-
-    private function handleUnknown(TelegramCallbackDTO $dto, string $action): void
-    {
-        Log::warning('CallbackQueryProcessor: unknown action', [
-            'action' => $action,
-            'callback_id' => $dto->callbackId,
-        ]);
-    }
-
-    private function resolveLocale(?string $languageCode): string
-    {
-        return match ($languageCode) {
-            'ru' => 'ru',
-            'uk' => 'uk',
-            'pl' => 'pl',
-            default => 'en',
-        };
+        $handler->handle($dto, $action->payload);
     }
 }
