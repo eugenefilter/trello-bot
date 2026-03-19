@@ -10,6 +10,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use Telegram\Bot\Api;
 use TelegramBot\Adapters\TrelloAdapter;
+use TelegramBot\CallbackHandlers\DeleteCardHandler;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RequestLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
@@ -28,6 +29,7 @@ use TelegramBot\Repositories\EloquentTelegramMessageRepository;
 use TelegramBot\Repositories\EloquentTrelloApiLogRepository;
 use TelegramBot\Repositories\TrelloCardLogRepository;
 use TelegramBot\Routing\RoutingEngine;
+use TelegramBot\Services\CallbackQueryProcessor;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -66,6 +68,18 @@ class AppServiceProvider extends ServiceProvider
                 telegram: new Api($token),
                 botToken: $token,
                 storageDir: storage_path('app/telegram_files'),
+            );
+        });
+
+        // CallbackQueryProcessor — роутер действий inline-кнопок
+        $this->app->bind(CallbackQueryProcessor::class, function ($app) {
+            return new CallbackQueryProcessor(
+                handlers: [
+                    'delete' => new DeleteCardHandler(
+                        telegram: $app->make(TelegramAdapterInterface::class),
+                        trello: $app->make(TrelloAdapterInterface::class),
+                    ),
+                ],
             );
         });
 

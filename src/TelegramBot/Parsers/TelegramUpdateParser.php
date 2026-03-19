@@ -6,6 +6,7 @@ namespace TelegramBot\Parsers;
 
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\ReplyMessageDTO;
+use TelegramBot\DTOs\TelegramCallbackDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 
 /**
@@ -53,6 +54,28 @@ class TelegramUpdateParser implements UpdateParserInterface
             mediaGroupId: $message['media_group_id'] ?? null,
             replyToMessage: $this->extractReplyMessage($message),
             languageCode: $message['from']['language_code'] ?? null,
+        );
+    }
+
+    /**
+     * Парсит callback_query update в TelegramCallbackDTO.
+     *
+     * Возвращает null если update не является callback_query.
+     */
+    public function parseCallback(array $update): ?TelegramCallbackDTO
+    {
+        $callback = $update['callback_query'] ?? null;
+
+        if ($callback === null) {
+            return null;
+        }
+
+        return new TelegramCallbackDTO(
+            callbackId: $callback['id'],
+            chatId: (string) $callback['message']['chat']['id'],
+            messageId: $callback['message']['message_id'],
+            data: $callback['data'],
+            languageCode: $callback['from']['language_code'] ?? null,
         );
     }
 

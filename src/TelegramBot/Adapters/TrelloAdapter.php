@@ -53,6 +53,7 @@ class TrelloAdapter implements TrelloAdapterInterface
 
         return new CreatedCardResult(
             id: $body['id'],
+            shortLink: $body['shortLink'],
             url: $body['url'],
         );
     }
@@ -97,6 +98,31 @@ class TrelloAdapter implements TrelloAdapterInterface
                 ->post(self::BASE_URL."/cards/{$cardId}/idLabels", ['value' => $labelId])
             );
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function deleteCard(string $shortLink): void
+    {
+        $start = microtime(true);
+
+        try {
+            $response = $this->http
+                ->withQueryParameters($this->credentials())
+                ->delete(self::BASE_URL."/cards/{$shortLink}");
+        } catch (ConnectionException $e) {
+            $this->apiLog->log('DELETE', "/cards/{$shortLink}", 0, $e->getMessage(), $this->elapsed($start));
+            throw new TrelloConnectionException($e->getMessage(), previous: $e);
+        }
+
+        $this->apiLog->log('DELETE', "/cards/{$shortLink}", $response->status(), null, $this->elapsed($start));
+
+        if ($response->status() === 404) {
+            return;
+        }
+
+        $this->handleErrors($response);
     }
 
     /**

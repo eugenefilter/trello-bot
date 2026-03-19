@@ -99,7 +99,7 @@ class TelegramUpdateProcessorTest extends TestCase
                     && ! str_contains($rendered->cardTitleTemplate, '{{')
                     && ! str_contains($rendered->cardDescriptionTemplate, '{{');
             })
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
@@ -108,7 +108,7 @@ class TelegramUpdateProcessorTest extends TestCase
 
     /**
      * После успешного создания карточки пользователю отправляется подтверждение
-     * с названием списка и ссылкой на карточку.
+     * с названием списка, ссылкой на карточку и shortLink.
      */
     public function test_sends_reply_with_list_name_and_card_url_after_creation(): void
     {
@@ -116,7 +116,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->andReturn($this->makeMessageDTO());
         $this->routing->shouldReceive('resolve')->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->telegram
             ->shouldReceive('sendMessage')
@@ -351,7 +351,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->once()->andReturn($dto);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
@@ -369,7 +369,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->once()->andReturn($dto);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
@@ -392,7 +392,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->once()->andReturn($dto);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
@@ -414,7 +414,7 @@ class TelegramUpdateProcessorTest extends TestCase
 
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+            ->andReturn(new CreatedCardResult('new-card', 'AbCd1234', 'https://trello.com/c/new-card'));
         $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('findSkippedGroupParts')
             ->once()->with('group-123', 1)->andReturn([]);
@@ -458,7 +458,7 @@ class TelegramUpdateProcessorTest extends TestCase
 
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+            ->andReturn(new CreatedCardResult('new-card', 'AbCd1234', 'https://trello.com/c/new-card'));
         $this->telegram->shouldReceive('sendMessage')->once();
 
         // Репозиторий возвращает одну skipped часть с файлом
@@ -491,7 +491,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->repository->shouldReceive('findCardIdByMediaGroup')->once()->andReturn(null);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('new-card', 'https://trello.com/c/new-card'));
+            ->andReturn(new CreatedCardResult('new-card', 'AbCd1234', 'https://trello.com/c/new-card'));
         $this->telegram->shouldReceive('sendMessage')->once();
 
         $this->repository->shouldReceive('findSkippedGroupParts')
@@ -669,7 +669,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->once()->andReturn($dto);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
         $this->cardCreator->shouldReceive('create')->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram
             ->shouldReceive('sendMessage')
             ->once()

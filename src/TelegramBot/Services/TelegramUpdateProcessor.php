@@ -100,10 +100,15 @@ class TelegramUpdateProcessor
 
         $result = $this->cardCreator->create($dto, $rendered, $telegramMessageId);
 
+        $locale = $this->resolveLocale($dto->languageCode);
+
         $this->telegram->sendMessage(
             $dto->chatId,
-            $this->buildReplyText($rendered->listName, $result->url, $dto->languageCode),
-            ['parse_mode' => 'HTML'],
+            $this->buildReplyText($rendered->listName, $result->url, $locale),
+            [
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode($this->buildDeleteKeyboard($result->shortLink, $locale)),
+            ],
         );
 
         if ($dto->mediaGroupId !== null) {
@@ -176,12 +181,24 @@ class TelegramUpdateProcessor
         return $dto->replyToMessage !== null;
     }
 
-    private function buildReplyText(string $listName, string $cardUrl, ?string $languageCode): string
+    private function buildReplyText(string $listName, string $cardUrl, string $locale): string
     {
         return trans('bot.card_created', [
             'list' => $listName,
             'url' => $cardUrl,
-        ], $this->resolveLocale($languageCode));
+        ], $locale);
+    }
+
+    private function buildDeleteKeyboard(string $shortLink, string $locale): array
+    {
+        return [
+            'inline_keyboard' => [[
+                [
+                    'text' => trans('bot.delete_button', [], $locale),
+                    'callback_data' => "delete:{$shortLink}",
+                ],
+            ]],
+        ];
     }
 
     /**

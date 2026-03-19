@@ -58,7 +58,7 @@ class TrelloCardCreatorTest extends TestCase
             ->withArgs(function (TrelloCardDTO $dto) {
                 return $dto->name === 'Test: Hello world';
             })
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->adapter->shouldNotReceive('addMembersToCard');
         $this->adapter->shouldNotReceive('addLabelsToCard');
@@ -83,7 +83,7 @@ class TrelloCardCreatorTest extends TestCase
             ->withArgs(function (TrelloCardDTO $dto) {
                 return $dto->description === 'Описание из шаблона';
             })
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->adapter->shouldNotReceive('addMembersToCard');
         $this->adapter->shouldNotReceive('addLabelsToCard');
@@ -108,7 +108,7 @@ class TrelloCardCreatorTest extends TestCase
             ->withArgs(function (TrelloCardDTO $dto) {
                 return $dto->memberIds === ['member-abc'];
             })
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->adapter->shouldNotReceive('addMembersToCard');
         $this->adapter->shouldNotReceive('addLabelsToCard');
@@ -132,7 +132,7 @@ class TrelloCardCreatorTest extends TestCase
             ->withArgs(function (TrelloCardDTO $dto) {
                 return $dto->labelIds === ['label-xyz'];
             })
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->adapter->shouldNotReceive('addMembersToCard');
         $this->adapter->shouldNotReceive('addLabelsToCard');
@@ -151,7 +151,7 @@ class TrelloCardCreatorTest extends TestCase
     public function test_calls_log_success_on_successful_creation(): void
     {
         $this->adapter->shouldReceive('createCard')
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->cardLog
             ->shouldReceive('logSuccess')
@@ -187,7 +187,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->adapter
             ->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->fileDownloader
             ->shouldReceive('download')
@@ -228,7 +228,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->adapter
             ->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->fileDownloader
             ->shouldReceive('download')
@@ -270,7 +270,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->adapter
             ->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->fileDownloader
             ->shouldReceive('download')
@@ -310,7 +310,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->adapter
             ->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->fileDownloader
             ->shouldReceive('download')
@@ -355,7 +355,7 @@ class TrelloCardCreatorTest extends TestCase
         $this->adapter
             ->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-1', 'https://trello.com/c/card-1'));
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
 
         $this->fileDownloader
             ->shouldReceive('download')

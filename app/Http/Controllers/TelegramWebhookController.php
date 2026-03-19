@@ -27,10 +27,10 @@ final class TelegramWebhookController extends Controller
 
         $requestLog->log($payload);
 
-        // Обрабатываем только обычные сообщения (message).
+        // Обрабатываем message и callback_query.
         // inline_query, edited_message, channel_post и прочие типы игнорируем —
         // Telegram ожидает 200, чтобы не повторять запрос.
-        if (! isset($payload['message'])) {
+        if (! isset($payload['message']) && ! isset($payload['callback_query'])) {
             return response()->json(['ok' => true]);
         }
 
