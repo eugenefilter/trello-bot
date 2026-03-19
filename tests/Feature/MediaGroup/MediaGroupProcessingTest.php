@@ -73,13 +73,13 @@ class MediaGroupProcessingTest extends TestCase
         $trello = Mockery::mock(TrelloAdapterInterface::class);
         $trello->shouldReceive('createCard')
             ->once()
-            ->andReturn(new CreatedCardResult('card-abc', 'https://trello.com/c/abc'));
+            ->andReturn(new CreatedCardResult('card-abc', 'AbCd1234', 'https://trello.com/c/abc'));
         // Ожидаем 3 вызова attachFile: main + part1 + part2
         $trello->shouldReceive('attachFile')->times(3);
         $this->app->instance(TrelloAdapterInterface::class, $trello);
 
         $telegram = Mockery::mock(TelegramAdapterInterface::class);
-        $telegram->shouldReceive('sendMessage')->once();
+        $telegram->shouldReceive('sendMessageWithKeyboard')->once();
         $this->app->instance(TelegramAdapterInterface::class, $telegram);
 
         $downloader = Mockery::mock(TelegramFileDownloader::class);

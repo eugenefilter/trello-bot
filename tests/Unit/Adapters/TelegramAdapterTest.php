@@ -90,4 +90,60 @@ class TelegramAdapterTest extends TestCase
 
         Log::shouldHaveReceived('warning')->once();
     }
+
+    /**
+     * sendMessageWithKeyboard передаёт reply_markup с inline-кнопками в SDK.
+     */
+    public function test_send_message_with_keyboard_passes_reply_markup(): void
+    {
+        $keyboard = [
+            'inline_keyboard' => [[
+                ['text' => '🗑 Удалить', 'callback_data' => 'delete:AbCd1234'],
+            ]],
+        ];
+
+        $this->bot
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (array $params) use ($keyboard) {
+                return $params['chat_id'] === '100'
+                    && $params['text'] === 'Текст'
+                    && $params['reply_markup'] === json_encode($keyboard);
+            });
+
+        $this->adapter->sendMessageWithKeyboard('100', 'Текст', $keyboard);
+    }
+
+    /**
+     * answerCallbackQuery вызывает SDK с callbackQueryId и текстом.
+     */
+    public function test_answer_callback_query_calls_sdk(): void
+    {
+        $this->bot
+            ->shouldReceive('answerCallbackQuery')
+            ->once()
+            ->withArgs(function (array $params) {
+                return $params['callback_query_id'] === 'cq-123'
+                    && $params['text'] === '✅ Карточка удалена';
+            });
+
+        $this->adapter->answerCallbackQuery('cq-123', '✅ Карточка удалена');
+    }
+
+    /**
+     * removeInlineKeyboard вызывает editMessageReplyMarkup с пустой клавиатурой.
+     */
+    public function test_remove_inline_keyboard_edits_message_markup(): void
+    {
+        $this->bot
+            ->shouldReceive('editMessageReplyMarkup')
+            ->once()
+            ->withArgs(function (array $params) {
+                return $params['chat_id'] === '100'
+                    && $params['message_id'] === 42
+                    && $params['reply_markup'] === json_encode(['inline_keyboard' => []]);
+            });
+
+        $this->adapter->removeInlineKeyboard('100', 42);
+    }
 }

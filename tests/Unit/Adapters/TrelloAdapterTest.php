@@ -78,7 +78,7 @@ class TrelloAdapterTest extends TestCase
     }
 
     /**
-     * createCard должен вернуть CreatedCardResult с id и url из ответа Trello.
+     * createCard должен вернуть CreatedCardResult с id, shortLink и url из ответа Trello.
      */
     public function test_create_card_returns_created_card_result(): void
     {
@@ -90,6 +90,7 @@ class TrelloAdapterTest extends TestCase
 
         $this->assertInstanceOf(CreatedCardResult::class, $result);
         $this->assertSame('card-id-abc', $result->id);
+        $this->assertSame('AbCd1234', $result->shortLink);
         $this->assertSame('https://trello.com/c/card-id-abc', $result->url);
     }
 
@@ -283,6 +284,51 @@ class TrelloAdapterTest extends TestCase
         return $path;
     }
 
+    /**
+     * deleteCard отправляет DELETE /1/cards/{shortLink}.
+     */
+    public function test_delete_card_sends_correct_request(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('', 200),
+        ]);
+
+        $this->adapter->deleteCard('AbCd1234');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/1/cards/AbCd1234')
+                && $request->method() === 'DELETE';
+        });
+    }
+
+    /**
+     * deleteCard при 404 не бросает исключение — карточка уже удалена.
+     */
+    public function test_delete_card_ignores_404(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('', 404),
+        ]);
+
+        $this->expectNotToPerformAssertions();
+
+        $this->adapter->deleteCard('AbCd1234');
+    }
+
+    /**
+     * deleteCard при 401 бросает TrelloAuthException.
+     */
+    public function test_delete_card_throws_auth_exception_on_401(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('', 401),
+        ]);
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->deleteCard('AbCd1234');
+    }
+
     private function cardDTO(): TrelloCardDTO
     {
         return new TrelloCardDTO(
@@ -298,8 +344,9 @@ class TrelloAdapterTest extends TestCase
     {
         return [
             'id' => 'card-id-abc',
+            'shortLink' => 'AbCd1234',
             'url' => 'https://trello.com/c/card-id-abc',
-            'shortUrl' => 'https://trello.com/c/card-id-abc',
+            'shortUrl' => 'https://trello.com/c/AbCd1234',
             'name' => 'Новая задача',
         ];
     }

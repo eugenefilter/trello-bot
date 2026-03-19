@@ -7,12 +7,17 @@ namespace App\Jobs;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
+use TelegramBot\Parsers\TelegramUpdateParser;
+use TelegramBot\Services\CallbackQueryProcessor;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use Throwable;
 
 /**
  * Асинхронно обрабатывает один Telegram update.
- * Вся бизнес-логика вынесена в TelegramUpdateProcessor.
+ *
+ * Роутит по типу update:
+ *   - message       → TelegramUpdateProcessor
+ *   - callback_query → CallbackQueryProcessor
  */
 class ProcessTelegramUpdateJob implements ShouldQueue
 {
@@ -30,9 +35,26 @@ class ProcessTelegramUpdateJob implements ShouldQueue
     /**
      * @throws Throwable
      */
-    public function handle(TelegramUpdateProcessor $processor): void
-    {
-        $processor->process($this->telegramMessageId);
+    public function handle(
+        TelegramMessageRepositoryInterface $repository,
+        TelegramUpdateProcessor $messageProcessor,
+        CallbackQueryProcessor $callbackProcessor,
+        TelegramUpdateParser $parser,
+    ): void {
+        $payload = $repository->getPayload($this->telegramMessageId);
+
+        if (isset($payload['callback_query'])) {
+            $dto = $parser->parseCallback($payload);
+
+            if ($dto !== null) {
+                $callbackProcessor->process($dto);
+                $repository->markProcessed($this->telegramMessageId);
+            }
+
+            return;
+        }
+
+        $messageProcessor->process($this->telegramMessageId);
     }
 
     public function failed(Throwable $exception): void

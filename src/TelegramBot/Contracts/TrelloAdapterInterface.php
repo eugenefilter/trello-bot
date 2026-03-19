@@ -53,4 +53,14 @@ interface TrelloAdapterInterface
      * Возвращает всех участников доски (для синхронизации справочника trello_members).
      */
     public function getBoardMembers(string $boardId): array;
+
+    /**
+     * Удаляет карточку по shortLink.
+     *
+     * 404 игнорируется — карточка уже удалена.
+     *
+     * @throws TrelloAuthException при 401
+     * @throws TrelloConnectionException при других ошибках
+     */
+    public function deleteCard(string $shortLink): void;
 }

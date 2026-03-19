@@ -72,6 +72,63 @@ class TelegramAdapter implements TelegramAdapterInterface
 
     /**
      * {@inheritDoc}
+     */
+    public function sendMessageWithKeyboard(string $chatId, string $text, array $keyboard, array $options = []): void
+    {
+        try {
+            $this->telegram->sendMessage(array_merge([
+                'chat_id' => $chatId,
+                'text' => $text,
+                'reply_markup' => json_encode($keyboard),
+            ], $options));
+        } catch (\Throwable $e) {
+            Log::warning('Telegram sendMessageWithKeyboard failed', [
+                'chat_id' => $chatId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function answerCallbackQuery(string $callbackId, string $text): void
+    {
+        try {
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $callbackId,
+                'text' => $text,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Telegram answerCallbackQuery failed', [
+                'callback_query_id' => $callbackId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function removeInlineKeyboard(string $chatId, int $messageId): void
+    {
+        try {
+            $this->telegram->editMessageReplyMarkup([
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+                'reply_markup' => json_encode(['inline_keyboard' => []]),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Telegram removeInlineKeyboard failed', [
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * Скачивает файл по file_path из Telegram и сохраняет в storageDir.
      * Возвращает абсолютный локальный путь.
