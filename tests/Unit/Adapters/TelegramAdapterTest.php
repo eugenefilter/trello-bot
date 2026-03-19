@@ -92,15 +92,11 @@ class TelegramAdapterTest extends TestCase
     }
 
     /**
-     * sendMessageWithKeyboard передаёт reply_markup с inline-кнопками в SDK.
+     * sendMessage передаёт reply_markup когда он указан в options.
      */
-    public function test_send_message_with_keyboard_passes_reply_markup(): void
+    public function test_send_message_passes_reply_markup_via_options(): void
     {
-        $keyboard = [
-            'inline_keyboard' => [[
-                ['text' => '🗑 Удалить', 'callback_data' => 'delete:AbCd1234'],
-            ]],
-        ];
+        $keyboard = ['inline_keyboard' => [[['text' => '🗑 Удалить', 'callback_data' => 'delete:AbCd1234']]]];
 
         $this->bot
             ->shouldReceive('sendMessage')
@@ -111,7 +107,7 @@ class TelegramAdapterTest extends TestCase
                     && $params['reply_markup'] === json_encode($keyboard);
             });
 
-        $this->adapter->sendMessageWithKeyboard('100', 'Текст', $keyboard);
+        $this->adapter->sendMessage('100', 'Текст', ['reply_markup' => json_encode($keyboard)]);
     }
 
     /**

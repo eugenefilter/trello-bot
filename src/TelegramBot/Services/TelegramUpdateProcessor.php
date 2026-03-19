@@ -102,11 +102,13 @@ class TelegramUpdateProcessor
 
         $locale = $this->resolveLocale($dto->languageCode);
 
-        $this->telegram->sendMessageWithKeyboard(
+        $this->telegram->sendMessage(
             $dto->chatId,
             $this->buildReplyText($rendered->listName, $result->url, $locale),
-            $this->buildDeleteKeyboard($result->shortLink, $locale),
-            ['parse_mode' => 'HTML'],
+            [
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode($this->buildDeleteKeyboard($result->shortLink, $locale)),
+            ],
         );
 
         if ($dto->mediaGroupId !== null) {

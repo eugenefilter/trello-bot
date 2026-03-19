@@ -73,25 +73,6 @@ class TelegramAdapter implements TelegramAdapterInterface
     /**
      * {@inheritDoc}
      */
-    public function sendMessageWithKeyboard(string $chatId, string $text, array $keyboard, array $options = []): void
-    {
-        try {
-            $this->telegram->sendMessage(array_merge([
-                'chat_id' => $chatId,
-                'text' => $text,
-                'reply_markup' => json_encode($keyboard),
-            ], $options));
-        } catch (\Throwable $e) {
-            Log::warning('Telegram sendMessageWithKeyboard failed', [
-                'chat_id' => $chatId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public function answerCallbackQuery(string $callbackId, string $text): void
     {
         try {

@@ -79,7 +79,7 @@ class MediaGroupProcessingTest extends TestCase
         $this->app->instance(TrelloAdapterInterface::class, $trello);
 
         $telegram = Mockery::mock(TelegramAdapterInterface::class);
-        $telegram->shouldReceive('sendMessageWithKeyboard')->once();
+        $telegram->shouldReceive('sendMessage')->once();
         $this->app->instance(TelegramAdapterInterface::class, $telegram);
 
         $downloader = Mockery::mock(TelegramFileDownloader::class);
