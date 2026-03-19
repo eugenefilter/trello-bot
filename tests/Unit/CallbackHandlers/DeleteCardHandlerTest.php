@@ -16,8 +16,8 @@ use Tests\TestCase;
  * Unit-тест DeleteCardHandler.
  *
  * Проверяет бизнес-логику обработки действия "delete":
- *   - успешное удаление → answerCallbackQuery + removeInlineKeyboard
- *   - ошибка Trello → answerCallbackQuery с текстом ошибки, без removeInlineKeyboard
+ *   - успешное удаление → answerCallbackQuery + removeInlineKeyboard + sendMessage с подтверждением
+ *   - ошибка Trello → answerCallbackQuery с текстом ошибки + sendMessage с ошибкой, без removeInlineKeyboard
  */
 class DeleteCardHandlerTest extends TestCase
 {
@@ -48,7 +48,7 @@ class DeleteCardHandlerTest extends TestCase
     }
 
     /**
-     * Успешное удаление: отвечает подтверждением и убирает клавиатуру.
+     * Успешное удаление: подтверждает callback, убирает клавиатуру, шлёт сообщение в чат.
      */
     public function test_handle_deletes_card_and_confirms(): void
     {
@@ -62,8 +62,7 @@ class DeleteCardHandlerTest extends TestCase
         $this->telegram
             ->shouldReceive('answerCallbackQuery')
             ->once()
-            ->withArgs(fn (string $id, string $text) =>
-                $id === 'cq-1' && str_contains($text, trans('bot.card_deleted', [], 'ru'))
+            ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.card_deleted', [], 'ru'))
             );
 
         $this->telegram
@@ -71,11 +70,17 @@ class DeleteCardHandlerTest extends TestCase
             ->once()
             ->with('100', 42);
 
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn (string $chatId, string $text) => $chatId === '100' && str_contains($text, trans('bot.card_deleted', [], 'ru'))
+            );
+
         $this->handler->handle($dto, 'AbCd1234');
     }
 
     /**
-     * Ошибка Trello: отвечает сообщением об ошибке, клавиатуру не убирает.
+     * Ошибка Trello: подтверждает callback с текстом ошибки, шлёт сообщение в чат, клавиатуру не убирает.
      */
     public function test_handle_answers_with_error_when_trello_throws(): void
     {
@@ -89,11 +94,16 @@ class DeleteCardHandlerTest extends TestCase
         $this->telegram
             ->shouldReceive('answerCallbackQuery')
             ->once()
-            ->withArgs(fn (string $id, string $text) =>
-                $id === 'cq-1' && str_contains($text, trans('bot.card_delete_failed', [], 'en'))
+            ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.card_delete_failed', [], 'en'))
             );
 
         $this->telegram->shouldNotReceive('removeInlineKeyboard');
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn (string $chatId, string $text) => $chatId === '100' && str_contains($text, trans('bot.card_delete_failed', [], 'en'))
+            );
 
         $this->handler->handle($dto, 'AbCd1234');
     }
@@ -110,11 +120,16 @@ class DeleteCardHandlerTest extends TestCase
         $this->telegram
             ->shouldReceive('answerCallbackQuery')
             ->once()
-            ->withArgs(fn (string $id, string $text) =>
-                $text === trans('bot.card_deleted', [], 'en')
+            ->withArgs(fn (string $id, string $text) => $text === trans('bot.card_deleted', [], 'en')
             );
 
         $this->telegram->shouldReceive('removeInlineKeyboard')->once();
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(fn (string $chatId, string $text) => $chatId === '100' && $text === trans('bot.card_deleted', [], 'en')
+            );
 
         $this->handler->handle($dto, 'AbCd1234');
     }
