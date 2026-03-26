@@ -11,6 +11,7 @@ use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\DTOs\TelegramCallbackDTO;
 use TelegramBot\Parsers\TelegramUpdateParser;
 use TelegramBot\Services\CallbackQueryProcessor;
+use TelegramBot\Services\TelegramEditProcessor;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use Tests\TestCase;
 
@@ -29,6 +30,8 @@ class ProcessTelegramUpdateJobTest extends TestCase
 
     private MockInterface $callbackProcessor;
 
+    private MockInterface $editProcessor;
+
     private MockInterface $parser;
 
     protected function setUp(): void
@@ -38,6 +41,7 @@ class ProcessTelegramUpdateJobTest extends TestCase
         $this->repository = Mockery::mock(TelegramMessageRepositoryInterface::class);
         $this->messageProcessor = Mockery::mock(TelegramUpdateProcessor::class);
         $this->callbackProcessor = Mockery::mock(CallbackQueryProcessor::class);
+        $this->editProcessor = Mockery::mock(TelegramEditProcessor::class);
         $this->parser = Mockery::mock(TelegramUpdateParser::class);
     }
 
@@ -56,11 +60,13 @@ class ProcessTelegramUpdateJobTest extends TestCase
         $this->repository->shouldReceive('getPayload')->with(42)->andReturn(['message' => []]);
         $this->messageProcessor->shouldReceive('process')->once()->with(42);
         $this->callbackProcessor->shouldNotReceive('process');
+        $this->editProcessor->shouldNotReceive('process');
 
         $this->makeJob(42)->handle(
             $this->repository,
             $this->messageProcessor,
             $this->callbackProcessor,
+            $this->editProcessor,
             $this->parser,
         );
     }
@@ -77,11 +83,32 @@ class ProcessTelegramUpdateJobTest extends TestCase
         $this->parser->shouldReceive('parseCallback')->once()->andReturn($dto);
         $this->callbackProcessor->shouldReceive('process')->once()->with($dto);
         $this->messageProcessor->shouldNotReceive('process');
+        $this->editProcessor->shouldNotReceive('process');
 
         $this->makeJob(99)->handle(
             $this->repository,
             $this->messageProcessor,
             $this->callbackProcessor,
+            $this->editProcessor,
+            $this->parser,
+        );
+    }
+
+    /**
+     * edited_message payload → делегирует TelegramEditProcessor с ID.
+     */
+    public function test_delegates_edited_message_to_edit_processor(): void
+    {
+        $this->repository->shouldReceive('getPayload')->with(77)->andReturn(['edited_message' => []]);
+        $this->editProcessor->shouldReceive('process')->once()->with(77);
+        $this->messageProcessor->shouldNotReceive('process');
+        $this->callbackProcessor->shouldNotReceive('process');
+
+        $this->makeJob(77)->handle(
+            $this->repository,
+            $this->messageProcessor,
+            $this->callbackProcessor,
+            $this->editProcessor,
             $this->parser,
         );
     }

@@ -28,4 +28,12 @@ interface TelegramFileRepositoryInterface
      * @param  string  $localPath  Абсолютный путь файла на сервере
      */
     public function updateLocalPath(string $fileId, int $messageId, string $localPath): void;
+
+    /**
+     * Возвращает все file_id файлов, сохранённых для данного сообщения.
+     * Используется при обработке редактирований для определения новых файлов.
+     *
+     * @return string[]
+     */
+    public function getFileIdsByMessageId(int $telegramMessageId): array;
 }

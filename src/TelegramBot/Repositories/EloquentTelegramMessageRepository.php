@@ -24,7 +24,7 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
      */
     public function firstOrCreate(array $payload): array
     {
-        $message = $payload['message'] ?? [];
+        $message = $payload['message'] ?? $payload['edited_message'] ?? [];
 
         $model = TelegramMessage::query()->firstOrCreate(
             ['update_id' => $payload['update_id']],
@@ -131,8 +131,34 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
     }
 
     /**
+     * {@inheritDoc}
+     */
+    public function findOriginalCardByMessage(string $chatId, int $messageId): ?array
+    {
+        $result = TrelloCardLog::query()
+            ->select('trello_cards_log.trello_card_id', 'trello_cards_log.trello_card_url', 'trello_cards_log.telegram_message_id')
+            ->join('telegram_messages', 'telegram_messages.id', '=', 'trello_cards_log.telegram_message_id')
+            ->where('telegram_messages.chat_id', $chatId)
+            ->where('telegram_messages.message_id', $messageId)
+            ->where('trello_cards_log.status', 'success')
+            ->whereNotNull('trello_cards_log.trello_card_id')
+            ->first();
+
+        if ($result === null) {
+            return null;
+        }
+
+        return [
+            'telegram_message_id' => $result->telegram_message_id,
+            'card_id' => $result->trello_card_id,
+            'card_url' => $result->trello_card_url,
+        ];
+    }
+
+    /**
      * Сохраняет фото/документы из payload в telegram_files.
      * Вызывается только для новых (не дублирующих) update.
+     * Сохраняет также файлы из reply_to_message для отслеживания при последующих редактированиях.
      */
     private function saveFiles(int $messageId, array $message): void
     {
@@ -148,6 +174,23 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
 
         if ($document !== null) {
             $this->fileRepository->createForMessage($messageId, $document, 'document');
+        }
+
+        $reply = $message['reply_to_message'] ?? null;
+
+        if ($reply !== null) {
+            $replyPhotos = $reply['photo'] ?? [];
+
+            if (! empty($replyPhotos)) {
+                $largest = end($replyPhotos);
+                $this->fileRepository->createForMessage($messageId, $largest, 'photo');
+            }
+
+            $replyDocument = $reply['document'] ?? null;
+
+            if ($replyDocument !== null) {
+                $this->fileRepository->createForMessage($messageId, $replyDocument, 'document');
+            }
         }
     }
 }

@@ -285,6 +285,27 @@ class TrelloAdapterTest extends TestCase
     }
 
     /**
+     * updateCard отправляет PUT /1/cards/{id} с name и desc.
+     */
+    public function test_update_card_sends_put_request_with_name_and_description(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'card-id-abc'], 200),
+        ]);
+
+        $this->adapter->updateCard('card-id-abc', 'Новое название', 'Новое описание');
+
+        Http::assertSent(function ($request) {
+            $this->assertStringContainsString('/1/cards/card-id-abc', $request->url());
+            $this->assertSame('PUT', $request->method());
+            $this->assertSame('Новое название', $request['name']);
+            $this->assertSame('Новое описание', $request['desc']);
+
+            return true;
+        });
+    }
+
+    /**
      * deleteCard отправляет DELETE /1/cards/{shortLink}.
      */
     public function test_delete_card_sends_correct_request(): void

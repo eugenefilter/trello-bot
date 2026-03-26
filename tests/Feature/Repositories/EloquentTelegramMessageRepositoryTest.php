@@ -156,6 +156,69 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
         $this->assertCount(0, $parts);
     }
 
+    public function test_saves_reply_document_to_telegram_files_when_message_has_reply_with_document(): void
+    {
+        $this->repository->firstOrCreate($this->editedMessageUpdate());
+
+        $message = TelegramMessage::first();
+
+        $this->assertDatabaseHas('telegram_files', [
+            'telegram_message_id' => $message->id,
+            'file_id' => 'reply-doc-file-id',
+            'file_type' => 'document',
+        ]);
+    }
+
+    public function test_first_or_create_handles_edited_message_payload(): void
+    {
+        $update = $this->editedMessageUpdate();
+
+        $result = $this->repository->firstOrCreate($update);
+
+        $this->assertDatabaseHas('telegram_messages', [
+            'update_id' => $update['update_id'],
+            'message_id' => $update['edited_message']['message_id'],
+            'chat_id' => $update['edited_message']['chat']['id'],
+        ]);
+        $this->assertTrue($result['created']);
+    }
+
+    public function test_find_original_card_by_message_returns_card_when_exists(): void
+    {
+        $original = $this->repository->firstOrCreate($this->textUpdate());
+
+        TrelloCardLog::create([
+            'telegram_message_id' => $original['id'],
+            'trello_card_id' => 'card-xyz-123',
+            'trello_card_url' => 'https://trello.com/c/xyz',
+            'trello_list_id' => 'list-1',
+            'status' => 'success',
+        ]);
+
+        $result = $this->repository->findOriginalCardByMessage('1', 2);
+
+        $this->assertNotNull($result);
+        $this->assertSame('card-xyz-123', $result['card_id']);
+        $this->assertSame('https://trello.com/c/xyz', $result['card_url']);
+        $this->assertSame($original['id'], $result['telegram_message_id']);
+    }
+
+    public function test_find_original_card_by_message_returns_null_when_no_card(): void
+    {
+        $this->repository->firstOrCreate($this->textUpdate());
+
+        $result = $this->repository->findOriginalCardByMessage('1', 2);
+
+        $this->assertNull($result);
+    }
+
+    public function test_find_original_card_by_message_returns_null_for_unknown_message(): void
+    {
+        $result = $this->repository->findOriginalCardByMessage('99999', 99999);
+
+        $this->assertNull($result);
+    }
+
     // --- Fixtures ---
 
     private function photoUpdate(): array
@@ -221,6 +284,37 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
                         'width' => 800,
                         'height' => 600,
                     ],
+                ],
+            ],
+        ];
+    }
+
+    private function editedMessageUpdate(): array
+    {
+        return [
+            'update_id' => 294206939,
+            'edited_message' => [
+                'message_id' => 6427,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene'],
+                'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                'date' => 1774541865,
+                'edit_date' => 1774542115,
+                'reply_to_message' => [
+                    'message_id' => 6404,
+                    'from' => ['id' => 111868151, 'username' => 'Gushilov', 'first_name' => 'Ivan'],
+                    'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                    'date' => 1774348333,
+                    'document' => [
+                        'file_id' => 'reply-doc-file-id',
+                        'file_unique_id' => 'reply-doc-unique-id',
+                        'file_size' => 107885,
+                        'mime_type' => 'image/png',
+                    ],
+                    'caption' => '/bug Съехал текст',
+                ],
+                'text' => '/bug@itsell_trello_bot Отредактировал сообщение для тестов',
+                'entities' => [
+                    ['offset' => 0, 'length' => 22, 'type' => 'bot_command'],
                 ],
             ],
         ];

@@ -54,4 +54,12 @@ interface TelegramMessageRepositoryInterface
      * @return array<array{id: int, file_ids: string[]}>
      */
     public function findSkippedGroupParts(string $mediaGroupId, int $excludeMessageId): array;
+
+    /**
+     * Ищет успешно созданную карточку Trello по Telegram chat_id и message_id.
+     * Используется при обработке edited_message для нахождения исходной карточки.
+     *
+     * @return array{telegram_message_id: int, card_id: string, card_url: string}|null
+     */
+    public function findOriginalCardByMessage(string $chatId, int $messageId): ?array;
 }

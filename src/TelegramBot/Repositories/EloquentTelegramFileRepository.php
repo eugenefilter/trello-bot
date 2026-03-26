@@ -30,4 +30,12 @@ class EloquentTelegramFileRepository implements TelegramFileRepositoryInterface
             ->where('telegram_message_id', $messageId)
             ->update(['local_path' => $localPath]);
     }
+
+    public function getFileIdsByMessageId(int $telegramMessageId): array
+    {
+        return TelegramFile::query()
+            ->where('telegram_message_id', $telegramMessageId)
+            ->pluck('file_id')
+            ->all();
+    }
 }

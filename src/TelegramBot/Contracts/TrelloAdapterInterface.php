@@ -55,6 +55,14 @@ interface TrelloAdapterInterface
     public function getBoardMembers(string $boardId): array;
 
     /**
+     * Обновляет название и описание карточки.
+     *
+     * @throws TrelloAuthException при 401
+     * @throws TrelloConnectionException при других ошибках
+     */
+    public function updateCard(string $cardId, string $name, string $description): void;
+
+    /**
      * Удаляет карточку по shortLink.
      *
      * 404 игнорируется — карточка уже удалена.
