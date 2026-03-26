@@ -30,6 +30,22 @@ class TelegramUpdateParser implements UpdateParserInterface
             return null;
         }
 
+        return $this->parseMessage($message);
+    }
+
+    public function parseEdit(array $update): ?TelegramMessageDTO
+    {
+        $message = $update['edited_message'] ?? null;
+
+        if ($message === null) {
+            return null;
+        }
+
+        return $this->parseMessage($message);
+    }
+
+    private function parseMessage(array $message): TelegramMessageDTO
+    {
         $text = $message['text'] ?? null;
         $caption = $message['caption'] ?? null;
         $photos = $this->extractPhotos($message);

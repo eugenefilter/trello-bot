@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Webhook;
 
+use App\Jobs\ProcessTelegramUpdateJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -121,6 +122,42 @@ class TelegramWebhookTest extends TestCase
     }
 
     /**
+     * edited_message update сохраняется и диспатчит Job.
+     */
+    public function test_dispatches_job_for_edited_message(): void
+    {
+        Queue::assertNothingPushed();
+
+        $this->postJson(
+            '/webhooks/telegram',
+            $this->editedMessageUpdate(),
+            ['X-Telegram-Bot-Api-Secret-Token' => $this->secret],
+        );
+
+        Queue::assertPushed(ProcessTelegramUpdateJob::class);
+    }
+
+    /**
+     * edited_message сохраняется в telegram_messages.
+     */
+    public function test_saves_edited_message_to_telegram_messages(): void
+    {
+        $update = $this->editedMessageUpdate();
+
+        $this->postJson(
+            '/webhooks/telegram',
+            $update,
+            ['X-Telegram-Bot-Api-Secret-Token' => $this->secret],
+        );
+
+        $this->assertDatabaseHas('telegram_messages', [
+            'update_id' => $update['update_id'],
+            'message_id' => $update['edited_message']['message_id'],
+            'chat_id' => $update['edited_message']['chat']['id'],
+        ]);
+    }
+
+    /**
      * Минимальный валидный Telegram update с текстовым сообщением.
      * Структура соответствует реальному payload от Telegram Bot API.
      */
@@ -141,6 +178,24 @@ class TelegramWebhookTest extends TestCase
                 ],
                 'date' => 1700000000,
                 'text' => 'Hello world',
+            ],
+        ];
+    }
+
+    private function editedMessageUpdate(): array
+    {
+        return [
+            'update_id' => 294206939,
+            'edited_message' => [
+                'message_id' => 6427,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene'],
+                'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                'date' => 1774541865,
+                'edit_date' => 1774542115,
+                'text' => '/bug@itsell_trello_bot Отредактировал сообщение для тестов',
+                'entities' => [
+                    ['offset' => 0, 'length' => 22, 'type' => 'bot_command'],
+                ],
             ],
         ];
     }

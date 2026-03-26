@@ -103,6 +103,20 @@ class TrelloAdapter implements TrelloAdapterInterface
     /**
      * {@inheritDoc}
      */
+    public function updateCard(string $cardId, string $name, string $description): void
+    {
+        $this->call('PUT', "/cards/{$cardId}", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->put(self::BASE_URL."/cards/{$cardId}", [
+                'name' => $name,
+                'desc' => $description,
+            ])
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function deleteCard(string $shortLink): void
     {
         $start = microtime(true);

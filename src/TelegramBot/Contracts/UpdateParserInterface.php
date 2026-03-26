@@ -19,4 +19,11 @@ interface UpdateParserInterface
      * @return TelegramMessageDTO|null null если update не содержит message
      */
     public function parse(array $update): ?TelegramMessageDTO;
+
+    /**
+     * Парсит edited_message update в TelegramMessageDTO.
+     *
+     * @return TelegramMessageDTO|null null если update не содержит edited_message
+     */
+    public function parseEdit(array $update): ?TelegramMessageDTO;
 }

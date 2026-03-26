@@ -9,6 +9,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Parsers\TelegramUpdateParser;
 use TelegramBot\Services\CallbackQueryProcessor;
+use TelegramBot\Services\TelegramEditProcessor;
 use TelegramBot\Services\TelegramUpdateProcessor;
 use Throwable;
 
@@ -39,6 +40,7 @@ class ProcessTelegramUpdateJob implements ShouldQueue
         TelegramMessageRepositoryInterface $repository,
         TelegramUpdateProcessor $messageProcessor,
         CallbackQueryProcessor $callbackProcessor,
+        TelegramEditProcessor $editProcessor,
         TelegramUpdateParser $parser,
     ): void {
         $payload = $repository->getPayload($this->telegramMessageId);
@@ -50,6 +52,12 @@ class ProcessTelegramUpdateJob implements ShouldQueue
                 $callbackProcessor->process($dto);
                 $repository->markProcessed($this->telegramMessageId);
             }
+
+            return;
+        }
+
+        if (isset($payload['edited_message'])) {
+            $editProcessor->process($this->telegramMessageId);
 
             return;
         }

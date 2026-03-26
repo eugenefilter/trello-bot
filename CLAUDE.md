@@ -33,6 +33,7 @@ This is a Laravel 12 application that serves as a Telegram bot to automatically 
 
 ### Main Flow
 
+New message:
 ```
 Telegram Message → POST /webhooks/telegram
   → TelegramWebhookController (validates secret, saves to DB)
@@ -41,6 +42,19 @@ Telegram Message → POST /webhooks/telegram
   → RoutingEngine (finds matching rule by chat_id, command, etc.)
   → TrelloAdapter (creates card, attaches files, assigns labels/members)
   → TelegramAdapter (sends response with card link back to user)
+```
+
+Edited message:
+```
+Telegram edited_message → POST /webhooks/telegram
+  → TelegramWebhookController (saves as new telegram_messages record)
+  → ProcessTelegramUpdateJob → TelegramEditProcessor
+  → TelegramUpdateParser.parseEdit() (extracts DTO from edited_message)
+  → TelegramMessageRepository.findOriginalCardByMessage() (finds card by chat_id + message_id)
+  → RoutingEngine (finds rule to re-render templates)
+  → TrelloAdapter.updateCard() (updates card name and description)
+  → TelegramFileRepository.getFileIdsByMessageId() (finds known files)
+  → TrelloAdapter.attachFile() (attaches only new files)
 ```
 
 ### Layered Architecture
@@ -57,11 +71,30 @@ DI bindings between layers are registered in `app/Providers/AppServiceProvider.p
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `RoutingEngine` | `src/TelegramBot/Routing/` | Evaluates routing rules in priority order, matches on chat_id, command, has_photo |
-| `TelegramUpdateParser` | `src/TelegramBot/Parsers/` | Parses Telegram updates into `TelegramMessageDTO` with template variables |
-| `TrelloAdapter` | `src/TelegramBot/Adapters/` | Trello API integration (create cards, upload files, sync board data) |
+| `TelegramUpdateParser` | `src/TelegramBot/Parsers/` | Parses Telegram updates into `TelegramMessageDTO`; `parse()` for new messages, `parseEdit()` for edited |
+| `TrelloAdapter` | `src/TelegramBot/Adapters/` | Trello API integration (create/update cards, upload files, sync board data) |
 | `TelegramAdapter` | `src/TelegramBot/Adapters/` | Telegram API integration (send messages, download files) |
-| `ProcessTelegramUpdateJob` | `app/Jobs/` | Async job — all core processing logic runs here, not in the controller |
+| `ProcessTelegramUpdateJob` | `app/Jobs/` | Async job — routes to `TelegramUpdateProcessor`, `TelegramEditProcessor`, or `CallbackQueryProcessor` |
+| `TelegramUpdateProcessor` | `src/TelegramBot/Services/` | Handles new messages: create card, attach files, send confirmation |
+| `TelegramEditProcessor` | `src/TelegramBot/Services/` | Handles edited messages: update card text, attach new files |
 | Filament Resources | `app/Filament/` | Admin panel at `/admin` for managing connections, routing rules, logs |
+
+### Reply-to-Message Handling
+
+When a user replies to a message containing photos or documents and sends a bot command, the files from the replied-to message (`reply_to_message`) are also attached to the created Trello card. Both `photo` and `document` types are supported in `reply_to_message`.
+
+`ReplyMessageDTO` carries `photos` and `documents` arrays extracted from `reply_to_message`.
+
+### Edited Message Handling
+
+When a Telegram user edits a message that previously triggered card creation:
+
+1. The `edited_message` update is saved as a new `telegram_messages` record (different `update_id`).
+2. `TelegramEditProcessor` finds the original card via `chat_id` + `message_id`.
+3. Card title and description are re-rendered from the routing rule templates with the new message data.
+4. New files (not present in `telegram_files` for the original message) are attached to the card.
+
+**Duplicate file prevention:** `EloquentTelegramMessageRepository.saveFiles()` saves all files from both the direct message and `reply_to_message` to `telegram_files`. On edit, `TelegramFileRepository.getFileIdsByMessageId()` returns known file IDs — only new ones are attached.
 
 ### Template Variables
 
