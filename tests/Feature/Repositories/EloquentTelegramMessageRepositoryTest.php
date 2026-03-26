@@ -199,6 +199,7 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
 
         $this->assertNotNull($result);
         $this->assertSame('card-xyz-123', $result['card_id']);
+        $this->assertSame('https://trello.com/c/xyz', $result['card_url']);
         $this->assertSame($original['id'], $result['telegram_message_id']);
     }
 

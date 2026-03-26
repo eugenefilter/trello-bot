@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use Mockery;
 use Mockery\MockInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
@@ -35,6 +36,8 @@ class TelegramEditProcessorTest extends TestCase
 
     private MockInterface $trello;
 
+    private MockInterface $telegram;
+
     private MockInterface $fileDownloader;
 
     private MockInterface $fileRepository;
@@ -49,6 +52,7 @@ class TelegramEditProcessorTest extends TestCase
         $this->parser = Mockery::mock(UpdateParserInterface::class);
         $this->routing = Mockery::mock(RoutingEngineInterface::class);
         $this->trello = Mockery::mock(TrelloAdapterInterface::class);
+        $this->telegram = Mockery::mock(TelegramAdapterInterface::class);
         $this->fileDownloader = Mockery::mock(TelegramFileDownloader::class);
         $this->fileRepository = Mockery::mock(TelegramFileRepositoryInterface::class);
 
@@ -58,6 +62,7 @@ class TelegramEditProcessorTest extends TestCase
             $this->routing,
             new CardTemplateRenderer,
             $this->trello,
+            $this->telegram,
             $this->fileDownloader,
             $this->fileRepository,
         );
@@ -107,16 +112,18 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn([
             'telegram_message_id' => 10,
             'card_id' => 'card-abc',
+            'card_url' => 'https://trello.com/c/card-abc',
         ]);
         $this->routing->shouldReceive('resolve')->once()->andReturn(null);
         $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Правило маршрутизации не найдено');
         $this->trello->shouldNotReceive('updateCard');
+        $this->telegram->shouldNotReceive('sendMessage');
 
         $this->processor->process(1);
     }
 
     /**
-     * Обновляет карточку с отрендеренными шаблонами и помечает как обработанное.
+     * Обновляет карточку с отрендеренными шаблонами, отправляет уведомление и помечает как обработанное.
      */
     public function test_updates_card_with_rendered_templates(): void
     {
@@ -127,10 +134,43 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn([
             'telegram_message_id' => 10,
             'card_id' => 'card-abc',
+            'card_url' => 'https://trello.com/c/card-abc',
         ]);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->routingDTO('Название', 'Описание'));
         $this->fileRepository->shouldReceive('getFileIdsByMessageId')->with(10)->andReturn([]);
         $this->trello->shouldReceive('updateCard')->once()->with('card-abc', 'Название', 'Описание');
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Уведомление содержит ссылку на карточку.
+     */
+    public function test_sends_notification_with_card_link(): void
+    {
+        $dto = $this->messageDTO();
+
+        $this->repository->shouldReceive('getPayload')->with(1)->andReturn(['edited_message' => ['message_id' => 100]]);
+        $this->parser->shouldReceive('parseEdit')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn([
+            'telegram_message_id' => 10,
+            'card_id' => 'card-abc',
+            'card_url' => 'https://trello.com/c/card-abc',
+        ]);
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->routingDTO());
+        $this->fileRepository->shouldReceive('getFileIdsByMessageId')->with(10)->andReturn([]);
+        $this->trello->shouldReceive('updateCard')->once();
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text) {
+                return $chatId === '-1001888188920'
+                    && str_contains($text, 'https://trello.com/c/card-abc');
+            });
+
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
         $this->processor->process(1);
@@ -161,9 +201,9 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn([
             'telegram_message_id' => 10,
             'card_id' => 'card-abc',
+            'card_url' => 'https://trello.com/c/card-abc',
         ]);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->routingDTO());
-        // new-photo-id is NOT in known files → should be attached
         $this->fileRepository->shouldReceive('getFileIdsByMessageId')->with(10)->andReturn(['old-photo-id']);
         $this->trello->shouldReceive('updateCard')->once();
         $this->fileDownloader
@@ -172,6 +212,7 @@ class TelegramEditProcessorTest extends TestCase
             ->once()
             ->andReturn(new DownloadedFile('/tmp/new_photo.jpg', 'image/jpeg'));
         $this->trello->shouldReceive('attachFile')->once()->with('card-abc', '/tmp/new_photo.jpg', 'image/jpeg');
+        $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
         $this->processor->process(1);
@@ -210,13 +251,14 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn([
             'telegram_message_id' => 10,
             'card_id' => 'card-abc',
+            'card_url' => 'https://trello.com/c/card-abc',
         ]);
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->routingDTO());
-        // already-attached-doc-id IS in known files → should NOT be re-attached
         $this->fileRepository->shouldReceive('getFileIdsByMessageId')->with(10)->andReturn(['already-attached-doc-id']);
         $this->trello->shouldReceive('updateCard')->once();
         $this->fileDownloader->shouldNotReceive('download');
         $this->trello->shouldNotReceive('attachFile');
+        $this->telegram->shouldReceive('sendMessage')->once();
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
         $this->processor->process(1);

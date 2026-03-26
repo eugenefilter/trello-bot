@@ -136,7 +136,7 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
     public function findOriginalCardByMessage(string $chatId, int $messageId): ?array
     {
         $result = TrelloCardLog::query()
-            ->select('trello_cards_log.trello_card_id', 'trello_cards_log.telegram_message_id')
+            ->select('trello_cards_log.trello_card_id', 'trello_cards_log.trello_card_url', 'trello_cards_log.telegram_message_id')
             ->join('telegram_messages', 'telegram_messages.id', '=', 'trello_cards_log.telegram_message_id')
             ->where('telegram_messages.chat_id', $chatId)
             ->where('telegram_messages.message_id', $messageId)
@@ -151,6 +151,7 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
         return [
             'telegram_message_id' => $result->telegram_message_id,
             'card_id' => $result->trello_card_id,
+            'card_url' => $result->trello_card_url,
         ];
     }
 

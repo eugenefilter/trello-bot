@@ -6,6 +6,7 @@ namespace TelegramBot\Services;
 
 use Illuminate\Support\Facades\Log;
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
@@ -32,6 +33,7 @@ class TelegramEditProcessor
         private readonly RoutingEngineInterface $routing,
         private readonly CardTemplateRenderer $renderer,
         private readonly TrelloAdapterInterface $trello,
+        private readonly TelegramAdapterInterface $telegram,
         private readonly TelegramFileDownloader $fileDownloader,
         private readonly TelegramFileRepositoryInterface $fileRepository,
     ) {}
@@ -78,7 +80,22 @@ class TelegramEditProcessor
 
         $this->attachNewFiles($dto, $original['card_id'], $original['telegram_message_id'], $telegramMessageId);
 
+        $locale = $this->resolveLocale($dto->languageCode);
+
+        $this->telegram->sendMessage(
+            $dto->chatId,
+            trans('bot.card_updated', ['url' => $original['card_url']], $locale),
+            ['parse_mode' => 'HTML'],
+        );
+
         $this->repository->markProcessed($telegramMessageId);
+    }
+
+    private function resolveLocale(?string $languageCode): string
+    {
+        return in_array($languageCode, ['en', 'ru', 'uk', 'pl'], strict: true)
+            ? $languageCode
+            : 'uk';
     }
 
     private function attachNewFiles(
