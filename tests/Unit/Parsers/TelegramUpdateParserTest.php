@@ -277,6 +277,19 @@ class TelegramUpdateParserTest extends TestCase
     }
 
     /**
+     * reply_to_message с документом → replyToMessage->documents заполнен.
+     */
+    public function test_extracts_reply_to_message_with_document(): void
+    {
+        $dto = $this->parser->parse($this->replyToDocumentUpdate());
+
+        $this->assertNotNull($dto->replyToMessage);
+        $this->assertSame('reply_document_file_id', $dto->replyToMessage->documents[0]);
+        $this->assertEmpty($dto->replyToMessage->photos);
+        $this->assertSame('/bug Съехал текст', $dto->replyToMessage->caption);
+    }
+
+    /**
      * Без reply_to_message → replyToMessage равен null.
      */
     public function test_reply_to_message_is_null_when_absent(): void
@@ -353,6 +366,41 @@ class TelegramUpdateParserTest extends TestCase
                 'text' => '/bug описание бага',
                 'entities' => [
                     ['offset' => 0, 'length' => 4, 'type' => 'bot_command'],
+                ],
+            ],
+        ];
+    }
+
+    /** Сообщение-ответ на сообщение с документом (фото как файл) */
+    private function replyToDocumentUpdate(): array
+    {
+        return [
+            'update_id' => 294206938,
+            'message' => [
+                'message_id' => 6427,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene'],
+                'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                'date' => 1774541865,
+                'reply_to_message' => [
+                    'message_id' => 6404,
+                    'from' => ['id' => 111868151, 'username' => 'Gushilov', 'first_name' => 'Ivan'],
+                    'chat' => ['id' => -1001888188920, 'type' => 'supergroup'],
+                    'date' => 1774348333,
+                    'document' => [
+                        'file_name' => 'image_2026-03-24_12-32-14.png',
+                        'mime_type' => 'image/png',
+                        'file_id' => 'reply_document_file_id',
+                        'file_unique_id' => 'AgAD2pwAAqmlGUo',
+                        'file_size' => 107885,
+                    ],
+                    'caption' => '/bug Съехал текст',
+                    'caption_entities' => [
+                        ['offset' => 0, 'length' => 4, 'type' => 'bot_command'],
+                    ],
+                ],
+                'text' => '/bug@itsell_trello_bot',
+                'entities' => [
+                    ['offset' => 0, 'length' => 22, 'type' => 'bot_command'],
                 ],
             ],
         ];

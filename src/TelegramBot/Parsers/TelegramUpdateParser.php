@@ -164,6 +164,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             text: $reply['text'] ?? null,
             caption: $reply['caption'] ?? null,
             photos: $this->extractPhotos($reply),
+            documents: $this->extractDocuments($reply),
         );
     }
 
