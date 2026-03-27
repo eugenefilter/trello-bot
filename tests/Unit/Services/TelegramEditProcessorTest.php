@@ -89,7 +89,7 @@ class TelegramEditProcessorTest extends TestCase
     }
 
     /**
-     * Если исходная карточка не найдена — помечаем как skipped.
+     * Если исходная карточка не найдена и нет replyToMessageId — помечаем как skipped.
      */
     public function test_skips_when_no_original_card_found(): void
     {
@@ -98,6 +98,74 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
         $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Исходная карточка не найдена');
         $this->trello->shouldNotReceive('updateCard');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Если исходная карточка не найдена, replyToMessageId указывает на сообщение бота с карточкой,
+     * и в edited_message есть текст → добавляем комментарий в Trello.
+     */
+    public function test_adds_comment_when_edited_bot_reply_has_text(): void
+    {
+        $dto = $this->botReplyDTO(caption: 'новый комментарий с фото вместе', replyToMessageId: 93);
+
+        $this->repository->shouldReceive('getPayload')->with(1)->andReturn(['edited_message' => ['message_id' => 101]]);
+        $this->parser->shouldReceive('parseEdit')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('746276963', 93)
+            ->andReturn(['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc']);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'новый комментарий с фото вместе');
+
+        $this->telegram->shouldReceive('sendMessage')->once()
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'https://trello.com/c/card-abc'));
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+        $this->trello->shouldNotReceive('updateCard');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Если исходная карточка не найдена, replyToMessageId указывает на сообщение бота,
+     * но текста нет — просто помечаем как обработанное.
+     */
+    public function test_marks_processed_when_edited_bot_reply_has_no_text(): void
+    {
+        $dto = $this->botReplyDTO(caption: null, replyToMessageId: 93);
+
+        $this->repository->shouldReceive('getPayload')->with(1)->andReturn(['edited_message' => ['message_id' => 101]]);
+        $this->parser->shouldReceive('parseEdit')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('746276963', 93)
+            ->andReturn(['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc']);
+
+        $this->trello->shouldNotReceive('addComment');
+        $this->telegram->shouldNotReceive('sendMessage');
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Если ни карточка по message_id, ни по bot_message_id не найдена — skipped.
+     */
+    public function test_skips_when_neither_original_card_nor_bot_reply_found(): void
+    {
+        $dto = $this->botReplyDTO(caption: 'текст', replyToMessageId: 999);
+
+        $this->repository->shouldReceive('getPayload')->with(1)->andReturn(['edited_message' => ['message_id' => 101]]);
+        $this->parser->shouldReceive('parseEdit')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('746276963', 999)->andReturn(null);
+
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Исходная карточка не найдена');
+        $this->trello->shouldNotReceive('addComment');
 
         $this->processor->process(1);
     }
@@ -281,6 +349,25 @@ class TelegramEditProcessorTest extends TestCase
             username: 'eugeneoleinykov',
             firstName: 'Eugene',
             sentAt: new \DateTimeImmutable('2026-03-26 17:17:00'),
+        );
+    }
+
+    private function botReplyDTO(?string $caption, int $replyToMessageId): TelegramMessageDTO
+    {
+        return new TelegramMessageDTO(
+            messageType: 'photo',
+            text: null,
+            caption: $caption,
+            photos: ['photo-file-id'],
+            documents: [],
+            userId: 746276963,
+            chatId: '746276963',
+            chatType: 'private',
+            command: null,
+            username: 'eugeneoleinykov',
+            firstName: 'Eugene',
+            sentAt: new \DateTimeImmutable('2026-03-27 08:44:00'),
+            replyToMessageId: $replyToMessageId,
         );
     }
 

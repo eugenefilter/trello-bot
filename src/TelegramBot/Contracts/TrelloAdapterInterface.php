@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TelegramBot\Contracts;
 
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\TrelloCardDTO;
 
@@ -22,8 +23,10 @@ interface TrelloAdapterInterface
 
     /**
      * Прикрепляет файл к карточке по локальному пути.
+     *
+     * @return AttachmentResult|null результат с id и url вложения, null если id отсутствует в ответе
      */
-    public function attachFile(string $cardId, string $filePath, string $mimeType): void;
+    public function attachFile(string $cardId, string $filePath, string $mimeType): ?AttachmentResult;
 
     /**
      * Назначает участников на карточку.
@@ -75,8 +78,26 @@ interface TrelloAdapterInterface
     /**
      * Добавляет комментарий к карточке.
      *
+     * @return string|null Trello action ID созданного комментария, null если id отсутствует в ответе
+     *
      * @throws TrelloAuthException при 401
      * @throws TrelloConnectionException при других ошибках
      */
-    public function addComment(string $cardId, string $text): void;
+    public function addComment(string $cardId, string $text): ?string;
+
+    /**
+     * Удаляет комментарий по Trello action ID.
+     *
+     * @throws TrelloAuthException при 401
+     * @throws TrelloConnectionException при других ошибках
+     */
+    public function deleteComment(string $actionId): void;
+
+    /**
+     * Удаляет вложение карточки.
+     *
+     * @throws TrelloAuthException при 401
+     * @throws TrelloConnectionException при других ошибках
+     */
+    public function deleteAttachment(string $cardId, string $attachmentId): void;
 }

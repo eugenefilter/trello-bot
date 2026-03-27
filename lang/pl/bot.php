@@ -9,4 +9,10 @@ return [
     'card_delete_failed' => '❌ Błąd podczas usuwania karty',
     'comment_added' => "💬 Komentarz dodany\n\n<a href=\":url\">Otwórz kartę</a>",
     'file_attached' => "📎 Plik załączony\n\n<a href=\":url\">Otwórz kartę</a>",
+    'delete_comment_button' => '🗑 Usuń komentarz',
+    'delete_attachment_button' => '🗑 Usuń plik/zdjęcie',
+    'comment_deleted' => '✅ Komentarz usunięty',
+    'comment_delete_failed' => '❌ Błąd podczas usuwania komentarza',
+    'attachment_deleted' => '✅ Plik usunięty',
+    'attachment_delete_failed' => '❌ Błąd podczas usuwania pliku',
 ];

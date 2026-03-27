@@ -60,6 +60,16 @@ class TelegramEditProcessor
             : null;
 
         if ($original === null) {
+            if ($dto->replyToMessageId !== null) {
+                $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId);
+
+                if ($card !== null) {
+                    $this->handleBotReplyEdit($dto, $card, $telegramMessageId);
+
+                    return;
+                }
+            }
+
             $this->repository->markSkipped($telegramMessageId, 'Исходная карточка не найдена');
 
             return;
@@ -87,6 +97,43 @@ class TelegramEditProcessor
             trans('bot.card_updated', ['url' => $original['card_url']], $locale),
             ['parse_mode' => 'HTML'],
         );
+
+        $this->repository->markProcessed($telegramMessageId);
+    }
+
+    /**
+     * Обрабатывает редактирование сообщения-ответа на подтверждение бота.
+     * Если есть текст — добавляет комментарий в Trello и уведомляет пользователя.
+     * Файлы не трогаем — они были прикреплены при исходной обработке.
+     */
+    private function handleBotReplyEdit(TelegramMessageDTO $dto, array $card, int $telegramMessageId): void
+    {
+        $text = $dto->text ?? $dto->caption ?? '';
+
+        if ($text !== '') {
+            $locale = $this->resolveLocale($dto->languageCode);
+
+            $commentActionId = $this->trello->addComment($card['card_id'], $text);
+
+            $options = ['parse_mode' => 'HTML'];
+
+            if ($commentActionId !== null) {
+                $options['reply_markup'] = json_encode([
+                    'inline_keyboard' => [[
+                        [
+                            'text' => trans('bot.delete_comment_button', [], $locale),
+                            'callback_data' => "delete_comment:{$commentActionId}",
+                        ],
+                    ]],
+                ]);
+            }
+
+            $this->telegram->sendMessage(
+                $dto->chatId,
+                trans('bot.comment_added', ['url' => $card['card_url']], $locale),
+                $options,
+            );
+        }
 
         $this->repository->markProcessed($telegramMessageId);
     }

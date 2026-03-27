@@ -9,4 +9,10 @@ return [
     'card_delete_failed' => '❌ Ошибка при удалении карточки',
     'comment_added' => "💬 Комментарий добавлен\n\n<a href=\":url\">Ссылка на карточку</a>",
     'file_attached' => "📎 Файл прикреплён\n\n<a href=\":url\">Ссылка на карточку</a>",
+    'delete_comment_button' => '🗑 Удалить комментарий',
+    'delete_attachment_button' => '🗑 Удалить файл/фото',
+    'comment_deleted' => '✅ Комментарий удалён',
+    'comment_delete_failed' => '❌ Ошибка при удалении комментария',
+    'attachment_deleted' => '✅ Файл удалён',
+    'attachment_delete_failed' => '❌ Ошибка при удалении файла',
 ];

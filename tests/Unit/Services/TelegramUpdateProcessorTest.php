@@ -13,6 +13,7 @@ use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\DownloadedFile;
 use TelegramBot\DTOs\ReplyMessageDTO;
@@ -642,6 +643,70 @@ class TelegramUpdateProcessorTest extends TestCase
     }
 
     /**
+     * Ответ на сообщение бота с текстом И файлом → файл прикрепляется, комментарий содержит ссылку на вложение.
+     */
+    public function test_reply_to_bot_message_with_text_and_file_adds_both(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Комментарий к файлу', documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/doc.pdf', 'application/pdf')
+            ->andReturn(new AttachmentResult('att-id-1', 'https://trello-attachments.s3.amazonaws.com/abc/doc.pdf'));
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->withArgs(function (string $cardId, string $text) {
+                return $cardId === 'card-abc'
+                    && str_contains($text, 'Комментарий к файлу')
+                    && str_contains($text, 'https://trello-attachments.s3.amazonaws.com/abc/doc.pdf');
+            })
+            ->andReturn('action-id-1');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с текстом без файла → комментарий без ссылки на вложение.
+     */
+    public function test_reply_with_text_only_adds_comment_without_attachment_url(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Просто комментарий', replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->withArgs(function (string $cardId, string $text) {
+                return $cardId === 'card-abc'
+                    && $text === 'Просто комментарий';
+            });
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
      * Команда в ответе на сообщение бота → обрабатывается как обычное создание карточки.
      */
     public function test_command_reply_to_bot_message_creates_card_normally(): void
@@ -692,6 +757,152 @@ class TelegramUpdateProcessorTest extends TestCase
             ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once()->andReturn(null);
         $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с текстом → уведомление содержит inline-кнопку "Удалить комментарий".
+     */
+    public function test_reply_with_text_sends_delete_comment_keyboard(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Добавляю комментарий', replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'Добавляю комментарий')
+            ->andReturn('action-id-abc');
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+
+                return count($buttons) === 1
+                    && str_contains($buttons[0]['callback_data'], 'delete_comment:action-id-abc');
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с файлом → уведомление содержит inline-кнопку "Удалить файл".
+     */
+    public function test_reply_with_file_sends_delete_attachment_keyboard(): void
+    {
+        $dto = $this->makeReplyToBotDTO(documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/doc.pdf', 'application/pdf')
+            ->andReturn(new AttachmentResult('att-id-xyz', 'https://trello.com/att/1'));
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+
+                return count($buttons) === 1
+                    && str_contains($buttons[0]['callback_data'], 'delete_attachment:card-abc/att-id-xyz');
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с текстом И файлом → две кнопки: "Удалить комментарий" и "Удалить файл".
+     */
+    public function test_reply_with_text_and_file_sends_both_delete_buttons(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Комментарий', documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()
+            ->andReturn(new AttachmentResult('att-id-xyz', 'https://trello.com/att/1'));
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->andReturn('action-id-abc');
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+                $callbackData = array_column($buttons, 'callback_data');
+
+                return count($buttons) === 2
+                    && in_array('delete_comment:action-id-abc', $callbackData, true)
+                    && in_array('delete_attachment:card-abc/att-id-xyz', $callbackData, true);
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с файлом, но attachFile вернул null (нет ID) → нет кнопки удаления.
+     */
+    public function test_reply_with_file_no_keyboard_when_attachment_result_is_null(): void
+    {
+        $dto = $this->makeReplyToBotDTO(documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()
+            ->andReturn(null);
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                return ! isset($options['reply_markup']);
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
         $this->processor->process(1);
     }

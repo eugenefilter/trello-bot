@@ -11,6 +11,7 @@ use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use Throwable;
@@ -143,41 +144,88 @@ class TelegramUpdateProcessor
         $locale = $this->resolveLocale($dto->languageCode);
 
         $allFiles = [...$dto->photos, ...$dto->documents];
+        $text = $dto->text ?? $dto->caption ?? '';
+        $attachmentUrls = [];
+        $firstAttachmentResult = null;
 
-        if (! empty($allFiles)) {
-            foreach ($allFiles as $fileId) {
-                try {
-                    $file = $this->fileDownloader->download($fileId, $telegramMessageId);
-                    $this->trello->attachFile($card['card_id'], $file->localPath, $file->mimeType);
-                } catch (Throwable $e) {
-                    Log::warning('Failed to attach reply file to Trello card', [
-                        'card_id' => $card['card_id'],
-                        'file_id' => $fileId,
-                        'error' => $e->getMessage(),
-                    ]);
+        foreach ($allFiles as $fileId) {
+            try {
+                $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                $result = $this->trello->attachFile($card['card_id'], $file->localPath, $file->mimeType);
+
+                if ($result !== null) {
+                    if ($firstAttachmentResult === null) {
+                        $firstAttachmentResult = $result;
+                    }
+
+                    if ($result->url !== null) {
+                        $attachmentUrls[] = $result->url;
+                    }
                 }
+            } catch (Throwable $e) {
+                Log::warning('Failed to attach reply file to Trello card', [
+                    'card_id' => $card['card_id'],
+                    'file_id' => $fileId,
+                    'error' => $e->getMessage(),
+                ]);
             }
-
-            $this->telegram->sendMessage(
-                $dto->chatId,
-                trans('bot.file_attached', ['url' => $card['card_url']], $locale),
-                ['parse_mode' => 'HTML'],
-            );
-        } else {
-            $text = $dto->text ?? $dto->caption ?? '';
-
-            if ($text !== '') {
-                $this->trello->addComment($card['card_id'], $text);
-            }
-
-            $this->telegram->sendMessage(
-                $dto->chatId,
-                trans('bot.comment_added', ['url' => $card['card_url']], $locale),
-                ['parse_mode' => 'HTML'],
-            );
         }
 
+        $commentActionId = null;
+
+        if ($text !== '') {
+            $commentText = ! empty($attachmentUrls)
+                ? $text."\n\n".implode("\n", $attachmentUrls)
+                : $text;
+
+            $commentActionId = $this->trello->addComment($card['card_id'], $commentText);
+        }
+
+        $notificationKey = ! empty($allFiles) ? 'bot.file_attached' : 'bot.comment_added';
+
+        $options = ['parse_mode' => 'HTML'];
+        $keyboard = $this->buildReplyActionKeyboard($commentActionId, $firstAttachmentResult, $card['card_id'], $locale);
+
+        if ($keyboard !== null) {
+            $options['reply_markup'] = json_encode($keyboard);
+        }
+
+        $this->telegram->sendMessage(
+            $dto->chatId,
+            trans($notificationKey, ['url' => $card['card_url']], $locale),
+            $options,
+        );
+
         $this->repository->markProcessed($telegramMessageId);
+    }
+
+    private function buildReplyActionKeyboard(
+        ?string $commentActionId,
+        ?AttachmentResult $attachmentResult,
+        string $cardId,
+        string $locale,
+    ): ?array {
+        $buttons = [];
+
+        if ($commentActionId !== null) {
+            $buttons[] = [
+                'text' => trans('bot.delete_comment_button', [], $locale),
+                'callback_data' => "delete_comment:{$commentActionId}",
+            ];
+        }
+
+        if ($attachmentResult !== null) {
+            $buttons[] = [
+                'text' => trans('bot.delete_attachment_button', [], $locale),
+                'callback_data' => "delete_attachment:{$cardId}/{$attachmentResult->id}",
+            ];
+        }
+
+        if (empty($buttons)) {
+            return null;
+        }
+
+        return ['inline_keyboard' => [$buttons]];
     }
 
     private function attachSkippedGroupParts(string $mediaGroupId, string $cardId, int $excludeMessageId): void

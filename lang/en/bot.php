@@ -9,4 +9,10 @@ return [
     'card_delete_failed' => '❌ Failed to delete card',
     'comment_added' => "💬 Comment added\n\n<a href=\":url\">Open card</a>",
     'file_attached' => "📎 File attached\n\n<a href=\":url\">Open card</a>",
+    'delete_comment_button' => '🗑 Delete comment',
+    'delete_attachment_button' => '🗑 Delete file/photo',
+    'comment_deleted' => '✅ Comment deleted',
+    'comment_delete_failed' => '❌ Failed to delete comment',
+    'attachment_deleted' => '✅ File deleted',
+    'attachment_delete_failed' => '❌ Failed to delete file',
 ];
