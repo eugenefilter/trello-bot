@@ -219,6 +219,51 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_find_card_by_bot_message_id_returns_card_when_exists(): void
+    {
+        $original = $this->repository->firstOrCreate($this->textUpdate());
+
+        TrelloCardLog::create([
+            'telegram_message_id' => $original['id'],
+            'trello_card_id' => 'card-bot-reply',
+            'trello_card_url' => 'https://trello.com/c/bot-reply',
+            'trello_list_id' => 'list-1',
+            'status' => 'success',
+            'bot_message_id' => 5555,
+        ]);
+
+        $result = $this->repository->findCardByBotMessageId('1', 5555);
+
+        $this->assertNotNull($result);
+        $this->assertSame('card-bot-reply', $result['card_id']);
+        $this->assertSame('https://trello.com/c/bot-reply', $result['card_url']);
+    }
+
+    public function test_find_card_by_bot_message_id_returns_null_when_not_found(): void
+    {
+        $result = $this->repository->findCardByBotMessageId('1', 9999);
+
+        $this->assertNull($result);
+    }
+
+    public function test_find_card_by_bot_message_id_returns_null_when_wrong_chat(): void
+    {
+        $original = $this->repository->firstOrCreate($this->textUpdate());
+
+        TrelloCardLog::create([
+            'telegram_message_id' => $original['id'],
+            'trello_card_id' => 'card-bot-reply',
+            'trello_card_url' => 'https://trello.com/c/bot-reply',
+            'trello_list_id' => 'list-1',
+            'status' => 'success',
+            'bot_message_id' => 5555,
+        ]);
+
+        $result = $this->repository->findCardByBotMessageId('999', 5555);
+
+        $this->assertNull($result);
+    }
+
     // --- Fixtures ---
 
     private function photoUpdate(): array

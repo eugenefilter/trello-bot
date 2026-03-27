@@ -156,6 +156,30 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
     }
 
     /**
+     * {@inheritDoc}
+     */
+    public function findCardByBotMessageId(string $chatId, int $botMessageId): ?array
+    {
+        $result = TrelloCardLog::query()
+            ->select('trello_cards_log.trello_card_id', 'trello_cards_log.trello_card_url')
+            ->join('telegram_messages', 'telegram_messages.id', '=', 'trello_cards_log.telegram_message_id')
+            ->where('telegram_messages.chat_id', $chatId)
+            ->where('trello_cards_log.bot_message_id', $botMessageId)
+            ->where('trello_cards_log.status', 'success')
+            ->whereNotNull('trello_cards_log.trello_card_id')
+            ->first();
+
+        if ($result === null) {
+            return null;
+        }
+
+        return [
+            'card_id' => $result->trello_card_id,
+            'card_url' => $result->trello_card_url,
+        ];
+    }
+
+    /**
      * Сохраняет фото/документы из payload в telegram_files.
      * Вызывается только для новых (не дублирующих) update.
      * Сохраняет также файлы из reply_to_message для отслеживания при последующих редактированиях.

@@ -45,4 +45,12 @@ class TrelloCardLogRepository implements CardLogRepositoryInterface
             'error_message' => $errorMessage,
         ]);
     }
+
+    public function setBotMessageId(int $telegramMessageId, int $botMessageId): void
+    {
+        TrelloCardLog::query()
+            ->where('telegram_message_id', $telegramMessageId)
+            ->where('status', 'success')
+            ->update(['bot_message_id' => $botMessageId]);
+    }
 }

@@ -350,6 +350,40 @@ class TrelloAdapterTest extends TestCase
         $this->adapter->deleteCard('AbCd1234');
     }
 
+    /**
+     * addComment отправляет POST /1/cards/{id}/actions/comments с текстом.
+     */
+    public function test_add_comment_sends_post_to_correct_endpoint(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'comment-1'], 200),
+        ]);
+
+        $this->adapter->addComment('card-id-abc', 'Это комментарий к карточке');
+
+        Http::assertSent(function ($request) {
+            $this->assertStringContainsString('/1/cards/card-id-abc/actions/comments', $request->url());
+            $this->assertSame('POST', $request->method());
+            $this->assertSame('Это комментарий к карточке', $request['text']);
+
+            return true;
+        });
+    }
+
+    /**
+     * addComment при ошибке 401 бросает TrelloAuthException.
+     */
+    public function test_add_comment_throws_auth_exception_on_401(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('invalid key', 401),
+        ]);
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->addComment('card-id-abc', 'Текст');
+    }
+
     private function cardDTO(): TrelloCardDTO
     {
         return new TrelloCardDTO(

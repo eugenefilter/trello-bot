@@ -18,8 +18,9 @@ interface TelegramAdapterInterface
      * Отправляет текстовое сообщение в чат.
      *
      * @param  array  $options  Дополнительные параметры (parse_mode, reply_to_message_id и т.д.)
+     * @return int|null message_id отправленного сообщения или null при ошибке
      */
-    public function sendMessage(string $chatId, string $text, array $options = []): void;
+    public function sendMessage(string $chatId, string $text, array $options = []): ?int;
 
     /**
      * Получает метаданные файла по file_id (вызов getFile Telegram API).

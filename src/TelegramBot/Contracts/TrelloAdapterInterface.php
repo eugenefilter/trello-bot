@@ -71,4 +71,12 @@ interface TrelloAdapterInterface
      * @throws TrelloConnectionException при других ошибках
      */
     public function deleteCard(string $shortLink): void;
+
+    /**
+     * Добавляет комментарий к карточке.
+     *
+     * @throws TrelloAuthException при 401
+     * @throws TrelloConnectionException при других ошибках
+     */
+    public function addComment(string $cardId, string $text): void;
 }

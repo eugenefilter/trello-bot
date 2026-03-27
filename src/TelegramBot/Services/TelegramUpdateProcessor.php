@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TelegramBot\Services;
 
 use Illuminate\Support\Facades\Log;
+use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -43,6 +44,7 @@ class TelegramUpdateProcessor
         private readonly TelegramAdapterInterface $telegram,
         private readonly TrelloAdapterInterface $trello,
         private readonly TelegramFileDownloader $fileDownloader,
+        private readonly CardLogRepositoryInterface $cardLog,
     ) {}
 
     /**
@@ -58,6 +60,16 @@ class TelegramUpdateProcessor
             $this->repository->markSkipped($telegramMessageId, 'Неподдерживаемый тип сообщения');
 
             return;
+        }
+
+        if ($dto->replyToMessageId !== null && ! $dto->isCommand()) {
+            $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId);
+
+            if ($card !== null) {
+                $this->handleBotReply($dto, $card, $telegramMessageId);
+
+                return;
+            }
         }
 
         if ($dto->mediaGroupId !== null) {
@@ -102,7 +114,7 @@ class TelegramUpdateProcessor
 
         $locale = $this->resolveLocale($dto->languageCode);
 
-        $this->telegram->sendMessage(
+        $botMessageId = $this->telegram->sendMessage(
             $dto->chatId,
             $this->buildReplyText($rendered->listName, $result->url, $locale),
             [
@@ -111,8 +123,58 @@ class TelegramUpdateProcessor
             ],
         );
 
+        if ($botMessageId !== null) {
+            $this->cardLog->setBotMessageId($telegramMessageId, $botMessageId);
+        }
+
         if ($dto->mediaGroupId !== null) {
             $this->attachSkippedGroupParts($dto->mediaGroupId, $result->id, $telegramMessageId);
+        }
+
+        $this->repository->markProcessed($telegramMessageId);
+    }
+
+    /**
+     * Обрабатывает ответ пользователя на сообщение бота с подтверждением создания карточки.
+     * Текст → комментарий в Trello. Файлы/фото → прикрепление к карточке.
+     */
+    private function handleBotReply(TelegramMessageDTO $dto, array $card, int $telegramMessageId): void
+    {
+        $locale = $this->resolveLocale($dto->languageCode);
+
+        $allFiles = [...$dto->photos, ...$dto->documents];
+
+        if (! empty($allFiles)) {
+            foreach ($allFiles as $fileId) {
+                try {
+                    $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                    $this->trello->attachFile($card['card_id'], $file->localPath, $file->mimeType);
+                } catch (Throwable $e) {
+                    Log::warning('Failed to attach reply file to Trello card', [
+                        'card_id' => $card['card_id'],
+                        'file_id' => $fileId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $this->telegram->sendMessage(
+                $dto->chatId,
+                trans('bot.file_attached', ['url' => $card['card_url']], $locale),
+                ['parse_mode' => 'HTML'],
+            );
+        } else {
+            $text = $dto->text ?? $dto->caption ?? '';
+
+            if ($text !== '') {
+                $this->trello->addComment($card['card_id'], $text);
+            }
+
+            $this->telegram->sendMessage(
+                $dto->chatId,
+                trans('bot.comment_added', ['url' => $card['card_url']], $locale),
+                ['parse_mode' => 'HTML'],
+            );
         }
 
         $this->repository->markProcessed($telegramMessageId);

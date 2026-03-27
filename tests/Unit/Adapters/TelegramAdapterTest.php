@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Mockery;
 use Mockery\MockInterface;
 use Telegram\Bot\Api;
+use Telegram\Bot\Objects\Message;
 use Tests\TestCase;
 
 /**
@@ -89,6 +90,40 @@ class TelegramAdapterTest extends TestCase
         $this->adapter->sendMessage('123456', 'Текст');
 
         Log::shouldHaveReceived('warning')->once();
+    }
+
+    /**
+     * sendMessage возвращает message_id отправленного сообщения.
+     */
+    public function test_send_message_returns_message_id(): void
+    {
+        $message = Mockery::mock(Message::class);
+        $message->shouldReceive('offsetGet')->with('message_id')->andReturn(9876);
+
+        $this->bot
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->andReturn($message);
+
+        $result = $this->adapter->sendMessage('123456', 'Текст');
+
+        $this->assertSame(9876, $result);
+    }
+
+    /**
+     * sendMessage возвращает null при ошибке Telegram SDK.
+     */
+    public function test_send_message_returns_null_on_error(): void
+    {
+        Log::spy();
+
+        $this->bot
+            ->shouldReceive('sendMessage')
+            ->andThrow(new \RuntimeException('Bad Request'));
+
+        $result = $this->adapter->sendMessage('123456', 'Текст');
+
+        $this->assertNull($result);
     }
 
     /**

@@ -117,6 +117,17 @@ class TrelloAdapter implements TrelloAdapterInterface
     /**
      * {@inheritDoc}
      */
+    public function addComment(string $cardId, string $text): void
+    {
+        $this->call('POST', "/cards/{$cardId}/actions/comments", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->post(self::BASE_URL."/cards/{$cardId}/actions/comments", ['text' => $text])
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function deleteCard(string $shortLink): void
     {
         $start = microtime(true);
