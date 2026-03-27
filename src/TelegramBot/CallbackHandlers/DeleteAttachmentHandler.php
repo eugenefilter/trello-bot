@@ -13,8 +13,8 @@ use Throwable;
 /**
  * Обрабатывает действие "delete_attachment:{cardId}/{attachmentId}" — удаляет вложение карточки.
  *
- * При успехе: подтверждает callback, убирает inline-клавиатуру, шлёт сообщение в чат.
- * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, клавиатуру не трогает.
+ * При успехе: подтверждает callback, удаляет сообщение из чата, шлёт подтверждение.
+ * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, сообщение не удаляет.
  */
 class DeleteAttachmentHandler implements CallbackActionHandlerInterface
 {
@@ -52,7 +52,7 @@ class DeleteAttachmentHandler implements CallbackActionHandlerInterface
         $text = trans('bot.attachment_deleted', [], $locale);
 
         $this->telegram->answerCallbackQuery($dto->callbackId, $text);
-        $this->telegram->removeInlineKeyboard($dto->chatId, $dto->messageId);
+        $this->telegram->deleteMessage($dto->chatId, $dto->messageId);
         $this->telegram->sendMessage($dto->chatId, $text);
     }
 

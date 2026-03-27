@@ -116,6 +116,25 @@ class TelegramAdapter implements TelegramAdapterInterface
 
     /**
      * {@inheritDoc}
+     */
+    public function deleteMessage(string $chatId, int $messageId): void
+    {
+        try {
+            $this->telegram->deleteMessage([
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Telegram deleteMessage failed', [
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * Скачивает файл по file_path из Telegram и сохраняет в storageDir.
      * Возвращает абсолютный локальный путь.

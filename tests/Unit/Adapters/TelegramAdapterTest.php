@@ -177,4 +177,36 @@ class TelegramAdapterTest extends TestCase
 
         $this->adapter->removeInlineKeyboard('100', 42);
     }
+
+    /**
+     * deleteMessage вызывает SDK deleteMessage с chat_id и message_id.
+     */
+    public function test_delete_message_calls_sdk(): void
+    {
+        $this->bot
+            ->shouldReceive('deleteMessage')
+            ->once()
+            ->withArgs(function (array $params) {
+                return $params['chat_id'] === '100'
+                    && $params['message_id'] === 42;
+            });
+
+        $this->adapter->deleteMessage('100', 42);
+    }
+
+    /**
+     * deleteMessage логирует warning при ошибке, не пробрасывает исключение.
+     */
+    public function test_delete_message_logs_warning_on_error(): void
+    {
+        Log::spy();
+
+        $this->bot
+            ->shouldReceive('deleteMessage')
+            ->andThrow(new \RuntimeException('message not found'));
+
+        $this->adapter->deleteMessage('100', 42);
+
+        Log::shouldHaveReceived('warning')->once();
+    }
 }

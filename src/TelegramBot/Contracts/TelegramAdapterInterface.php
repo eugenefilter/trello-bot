@@ -41,4 +41,9 @@ interface TelegramAdapterInterface
      * Убирает inline-клавиатуру из сообщения (после выполнения действия).
      */
     public function removeInlineKeyboard(string $chatId, int $messageId): void;
+
+    /**
+     * Удаляет сообщение из чата.
+     */
+    public function deleteMessage(string $chatId, int $messageId): void;
 }

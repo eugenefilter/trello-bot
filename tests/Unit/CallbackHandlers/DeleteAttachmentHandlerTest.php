@@ -16,8 +16,8 @@ use Tests\TestCase;
  * Unit-тест DeleteAttachmentHandler.
  *
  * Payload формата "{cardId}/{attachmentId}" парсится и передаётся в deleteAttachment.
- *   - успех → answerCallbackQuery + removeInlineKeyboard + sendMessage
- *   - ошибка Trello → answerCallbackQuery с ошибкой + sendMessage, без removeInlineKeyboard
+ *   - успех → answerCallbackQuery + deleteMessage + sendMessage
+ *   - ошибка Trello → answerCallbackQuery с ошибкой + sendMessage, без deleteMessage
  */
 class DeleteAttachmentHandlerTest extends TestCase
 {
@@ -48,7 +48,7 @@ class DeleteAttachmentHandlerTest extends TestCase
     }
 
     /**
-     * Успешное удаление: парсит payload, вызывает deleteAttachment, отвечает и убирает клавиатуру.
+     * Успешное удаление: парсит payload, вызывает deleteAttachment, удаляет сообщение.
      */
     public function test_handle_deletes_attachment_and_confirms(): void
     {
@@ -65,7 +65,7 @@ class DeleteAttachmentHandlerTest extends TestCase
             ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.attachment_deleted', [], 'uk')));
 
         $this->telegram
-            ->shouldReceive('removeInlineKeyboard')
+            ->shouldReceive('deleteMessage')
             ->once()
             ->with('100', 42);
 
@@ -94,7 +94,7 @@ class DeleteAttachmentHandlerTest extends TestCase
             ->once()
             ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.attachment_delete_failed', [], 'en')));
 
-        $this->telegram->shouldNotReceive('removeInlineKeyboard');
+        $this->telegram->shouldNotReceive('deleteMessage');
 
         $this->telegram
             ->shouldReceive('sendMessage')
@@ -112,7 +112,7 @@ class DeleteAttachmentHandlerTest extends TestCase
         $dto = $this->makeCallbackDTO('en');
 
         $this->trello->shouldNotReceive('deleteAttachment');
-        $this->telegram->shouldNotReceive('removeInlineKeyboard');
+        $this->telegram->shouldNotReceive('deleteMessage');
         $this->telegram->shouldNotReceive('sendMessage');
 
         $this->telegram
@@ -137,7 +137,7 @@ class DeleteAttachmentHandlerTest extends TestCase
             ->once()
             ->withArgs(fn (string $id, string $text) => $text === trans('bot.attachment_deleted', [], 'en'));
 
-        $this->telegram->shouldReceive('removeInlineKeyboard')->once();
+        $this->telegram->shouldReceive('deleteMessage')->once();
 
         $this->telegram
             ->shouldReceive('sendMessage')

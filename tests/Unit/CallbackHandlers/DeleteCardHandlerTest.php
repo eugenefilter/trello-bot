@@ -16,8 +16,8 @@ use Tests\TestCase;
  * Unit-тест DeleteCardHandler.
  *
  * Проверяет бизнес-логику обработки действия "delete":
- *   - успешное удаление → answerCallbackQuery + removeInlineKeyboard + sendMessage с подтверждением
- *   - ошибка Trello → answerCallbackQuery с текстом ошибки + sendMessage с ошибкой, без removeInlineKeyboard
+ *   - успешное удаление → answerCallbackQuery + deleteMessage + sendMessage с подтверждением
+ *   - ошибка Trello → answerCallbackQuery с текстом ошибки + sendMessage с ошибкой, без deleteMessage
  */
 class DeleteCardHandlerTest extends TestCase
 {
@@ -48,7 +48,7 @@ class DeleteCardHandlerTest extends TestCase
     }
 
     /**
-     * Успешное удаление: подтверждает callback, убирает клавиатуру, шлёт сообщение в чат.
+     * Успешное удаление: подтверждает callback, удаляет сообщение, шлёт сообщение в чат.
      */
     public function test_handle_deletes_card_and_confirms(): void
     {
@@ -66,7 +66,7 @@ class DeleteCardHandlerTest extends TestCase
             );
 
         $this->telegram
-            ->shouldReceive('removeInlineKeyboard')
+            ->shouldReceive('deleteMessage')
             ->once()
             ->with('100', 42);
 
@@ -97,7 +97,7 @@ class DeleteCardHandlerTest extends TestCase
             ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.card_delete_failed', [], 'en'))
             );
 
-        $this->telegram->shouldNotReceive('removeInlineKeyboard');
+        $this->telegram->shouldNotReceive('deleteMessage');
 
         $this->telegram
             ->shouldReceive('sendMessage')
@@ -123,7 +123,7 @@ class DeleteCardHandlerTest extends TestCase
             ->withArgs(fn (string $id, string $text) => $text === trans('bot.card_deleted', [], 'en')
             );
 
-        $this->telegram->shouldReceive('removeInlineKeyboard')->once();
+        $this->telegram->shouldReceive('deleteMessage')->once();
 
         $this->telegram
             ->shouldReceive('sendMessage')

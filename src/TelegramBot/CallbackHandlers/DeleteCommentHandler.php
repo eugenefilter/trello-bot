@@ -12,8 +12,8 @@ use Throwable;
 /**
  * Обрабатывает действие "delete_comment:{actionId}" — удаляет комментарий Trello.
  *
- * При успехе: подтверждает callback, убирает inline-клавиатуру, шлёт сообщение в чат.
- * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, клавиатуру не трогает.
+ * При успехе: подтверждает callback, удаляет сообщение из чата, шлёт подтверждение.
+ * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, сообщение не удаляет.
  */
 class DeleteCommentHandler implements CallbackActionHandlerInterface
 {
@@ -40,7 +40,7 @@ class DeleteCommentHandler implements CallbackActionHandlerInterface
         $text = trans('bot.comment_deleted', [], $locale);
 
         $this->telegram->answerCallbackQuery($dto->callbackId, $text);
-        $this->telegram->removeInlineKeyboard($dto->chatId, $dto->messageId);
+        $this->telegram->deleteMessage($dto->chatId, $dto->messageId);
         $this->telegram->sendMessage($dto->chatId, $text);
     }
 

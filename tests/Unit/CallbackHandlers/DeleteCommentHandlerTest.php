@@ -16,8 +16,8 @@ use Tests\TestCase;
  * Unit-тест DeleteCommentHandler.
  *
  * Проверяет логику удаления комментария по actionId:
- *   - успех → answerCallbackQuery + removeInlineKeyboard + sendMessage
- *   - ошибка Trello → answerCallbackQuery с текстом ошибки + sendMessage, без removeInlineKeyboard
+ *   - успех → answerCallbackQuery + deleteMessage + sendMessage
+ *   - ошибка Trello → answerCallbackQuery с текстом ошибки + sendMessage, без deleteMessage
  */
 class DeleteCommentHandlerTest extends TestCase
 {
@@ -48,7 +48,7 @@ class DeleteCommentHandlerTest extends TestCase
     }
 
     /**
-     * Успешное удаление: подтверждает callback, убирает клавиатуру, шлёт сообщение в чат.
+     * Успешное удаление: подтверждает callback, удаляет сообщение, шлёт сообщение в чат.
      */
     public function test_handle_deletes_comment_and_confirms(): void
     {
@@ -65,7 +65,7 @@ class DeleteCommentHandlerTest extends TestCase
             ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.comment_deleted', [], 'ru')));
 
         $this->telegram
-            ->shouldReceive('removeInlineKeyboard')
+            ->shouldReceive('deleteMessage')
             ->once()
             ->with('100', 42);
 
@@ -94,7 +94,7 @@ class DeleteCommentHandlerTest extends TestCase
             ->once()
             ->withArgs(fn (string $id, string $text) => $id === 'cq-1' && str_contains($text, trans('bot.comment_delete_failed', [], 'en')));
 
-        $this->telegram->shouldNotReceive('removeInlineKeyboard');
+        $this->telegram->shouldNotReceive('deleteMessage');
 
         $this->telegram
             ->shouldReceive('sendMessage')
@@ -118,7 +118,7 @@ class DeleteCommentHandlerTest extends TestCase
             ->once()
             ->withArgs(fn (string $id, string $text) => $text === trans('bot.comment_deleted', [], 'en'));
 
-        $this->telegram->shouldReceive('removeInlineKeyboard')->once();
+        $this->telegram->shouldReceive('deleteMessage')->once();
 
         $this->telegram
             ->shouldReceive('sendMessage')
