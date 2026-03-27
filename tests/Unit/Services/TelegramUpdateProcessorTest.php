@@ -750,6 +750,8 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->parser->shouldReceive('parse')->andReturn($dto);
         $this->repository->shouldReceive('findCardByBotMessageId')
             ->once()->with('100', 9999)->andReturn(null);
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('100', 9999)->andReturn(null);
 
         // Не найдено — идёт в обычный флоу
         $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
@@ -757,6 +759,63 @@ class TelegramUpdateProcessorTest extends TestCase
             ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
         $this->telegram->shouldReceive('sendMessage')->once()->andReturn(null);
         $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на linked-сообщение (не на сообщение бота, а на сообщение пользователя,
+     * ранее связанное с карточкой) → добавляет комментарий/файл в Trello.
+     */
+    public function test_reply_to_linked_message_is_processed_as_bot_reply(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'ответ на свой комментарий', replyToMessageId: 101);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+
+        // Сначала проверяем bot_message_id — не находим
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 101)->andReturn(null);
+
+        // Затем проверяем linked_message — находим
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('100', 101)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'ответ на свой комментарий');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->cardCreator->shouldNotReceive('create');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * handleBotReply сохраняет message_id пользователя как linked для будущих ответов.
+     */
+    public function test_handle_bot_reply_links_user_message_to_card(): void
+    {
+        $dto = $this->makeReplyToBotDTOWithMessageId(text: 'Добавляю комментарий', replyToMessageId: 8888, messageId: 101);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')->once()->andReturn(null);
+
+        $this->repository->shouldReceive('linkMessageToCard')
+            ->once()->with('100', 101, 'card-abc', 'https://trello.com/c/card-abc');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
 
         $this->processor->process(1);
     }
@@ -1125,6 +1184,31 @@ class TelegramUpdateProcessorTest extends TestCase
             username: 'testuser',
             firstName: 'Test',
             sentAt: new DateTimeImmutable,
+            replyToMessageId: $replyToMessageId,
+        );
+    }
+
+    private function makeReplyToBotDTOWithMessageId(
+        ?string $text = null,
+        array $photos = [],
+        array $documents = [],
+        int $replyToMessageId = 8888,
+        int $messageId = 101,
+    ): TelegramMessageDTO {
+        return new TelegramMessageDTO(
+            messageType: empty($photos) && empty($documents) ? 'text' : 'photo',
+            text: $text,
+            caption: null,
+            photos: $photos,
+            documents: $documents,
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            messageId: $messageId,
             replyToMessageId: $replyToMessageId,
         );
     }

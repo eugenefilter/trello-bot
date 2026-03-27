@@ -61,7 +61,8 @@ class TelegramEditProcessor
 
         if ($original === null) {
             if ($dto->replyToMessageId !== null) {
-                $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId);
+                $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId)
+                    ?? $this->repository->findCardByLinkedMessage($dto->chatId, $dto->replyToMessageId);
 
                 if ($card !== null) {
                     $this->handleBotReplyEdit($dto, $card, $telegramMessageId);

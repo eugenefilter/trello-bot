@@ -117,6 +117,8 @@ class TelegramEditProcessorTest extends TestCase
             ->once()->with('746276963', 93)
             ->andReturn(['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc']);
 
+        $this->repository->shouldNotReceive('findCardByLinkedMessage');
+
         $this->trello->shouldReceive('addComment')
             ->once()->with('card-abc', 'новый комментарий с фото вместе');
 
@@ -144,6 +146,8 @@ class TelegramEditProcessorTest extends TestCase
             ->once()->with('746276963', 93)
             ->andReturn(['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc']);
 
+        $this->repository->shouldNotReceive('findCardByLinkedMessage');
+
         $this->trello->shouldNotReceive('addComment');
         $this->telegram->shouldNotReceive('sendMessage');
         $this->repository->shouldReceive('markProcessed')->once()->with(1);
@@ -152,7 +156,7 @@ class TelegramEditProcessorTest extends TestCase
     }
 
     /**
-     * Если ни карточка по message_id, ни по bot_message_id не найдена — skipped.
+     * Если ни карточка по message_id, ни по bot_message_id, ни по linked_message не найдена — skipped.
      */
     public function test_skips_when_neither_original_card_nor_bot_reply_found(): void
     {
@@ -163,9 +167,40 @@ class TelegramEditProcessorTest extends TestCase
         $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
         $this->repository->shouldReceive('findCardByBotMessageId')
             ->once()->with('746276963', 999)->andReturn(null);
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('746276963', 999)->andReturn(null);
 
         $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Исходная карточка не найдена');
         $this->trello->shouldNotReceive('addComment');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Редактирование ответа на linked-сообщение пользователя (не на сообщение бота) —
+     * добавляет комментарий в Trello.
+     */
+    public function test_handles_edit_of_reply_to_linked_message(): void
+    {
+        $dto = $this->botReplyDTO(caption: 'отредактированный текст', replyToMessageId: 101);
+
+        $this->repository->shouldReceive('getPayload')->with(1)->andReturn(['edited_message' => ['message_id' => 105]]);
+        $this->parser->shouldReceive('parseEdit')->once()->andReturn($dto);
+        $this->repository->shouldReceive('findOriginalCardByMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('746276963', 101)->andReturn(null);
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('746276963', 101)
+            ->andReturn(['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc']);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'отредактированный текст');
+
+        $this->telegram->shouldReceive('sendMessage')->once()
+            ->withArgs(fn ($chatId, $text) => str_contains($text, 'https://trello.com/c/card-abc'));
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+        $this->trello->shouldNotReceive('updateCard');
 
         $this->processor->process(1);
     }

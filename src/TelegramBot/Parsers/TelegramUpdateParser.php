@@ -70,6 +70,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             mediaGroupId: $message['media_group_id'] ?? null,
             replyToMessage: $this->extractReplyMessage($message),
             languageCode: $message['from']['language_code'] ?? null,
+            messageId: $message['message_id'] ?? null,
             replyToMessageId: $message['reply_to_message']['message_id'] ?? null,
         );
     }

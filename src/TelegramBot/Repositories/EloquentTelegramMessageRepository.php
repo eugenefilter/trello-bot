@@ -6,6 +6,7 @@ namespace TelegramBot\Repositories;
 
 use App\Models\TelegramFile;
 use App\Models\TelegramMessage;
+use App\Models\TrelloCardLinkedMessage;
 use App\Models\TrelloCardLog;
 use TelegramBot\Contracts\TelegramFileRepositoryInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
@@ -167,6 +168,39 @@ class EloquentTelegramMessageRepository implements TelegramMessageRepositoryInte
             ->where('trello_cards_log.bot_message_id', $botMessageId)
             ->where('trello_cards_log.status', 'success')
             ->whereNotNull('trello_cards_log.trello_card_id')
+            ->first();
+
+        if ($result === null) {
+            return null;
+        }
+
+        return [
+            'card_id' => $result->trello_card_id,
+            'card_url' => $result->trello_card_url,
+        ];
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function linkMessageToCard(string $chatId, int $telegramMessageId, string $cardId, string $cardUrl): void
+    {
+        TrelloCardLinkedMessage::query()->create([
+            'chat_id' => $chatId,
+            'telegram_message_id' => $telegramMessageId,
+            'trello_card_id' => $cardId,
+            'trello_card_url' => $cardUrl,
+        ]);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findCardByLinkedMessage(string $chatId, int $telegramMessageId): ?array
+    {
+        $result = TrelloCardLinkedMessage::query()
+            ->where('chat_id', $chatId)
+            ->where('telegram_message_id', $telegramMessageId)
             ->first();
 
         if ($result === null) {

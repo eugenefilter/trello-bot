@@ -64,7 +64,8 @@ class TelegramUpdateProcessor
         }
 
         if ($dto->replyToMessageId !== null && ! $dto->isCommand()) {
-            $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId);
+            $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId)
+                ?? $this->repository->findCardByLinkedMessage($dto->chatId, $dto->replyToMessageId);
 
             if ($card !== null) {
                 $this->handleBotReply($dto, $card, $telegramMessageId);
@@ -197,6 +198,19 @@ class TelegramUpdateProcessor
         );
 
         $this->repository->markProcessed($telegramMessageId);
+
+        if ($dto->messageId !== null) {
+            try {
+                $this->repository->linkMessageToCard($dto->chatId, $dto->messageId, $card['card_id'], $card['card_url']);
+            } catch (Throwable $e) {
+                Log::warning('Failed to link user message to card', [
+                    'chat_id' => $dto->chatId,
+                    'message_id' => $dto->messageId,
+                    'card_id' => $card['card_id'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function buildReplyActionKeyboard(

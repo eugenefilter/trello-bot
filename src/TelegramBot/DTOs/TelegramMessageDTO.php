@@ -38,6 +38,7 @@ class TelegramMessageDTO
         public ?string $mediaGroupId = null,
         public ?ReplyMessageDTO $replyToMessage = null,
         public ?string $languageCode = null,
+        public ?int $messageId = null,
         public ?int $replyToMessageId = null,
     ) {}
 

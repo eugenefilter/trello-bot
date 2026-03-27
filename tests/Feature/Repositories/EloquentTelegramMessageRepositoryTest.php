@@ -364,4 +364,40 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
             ],
         ];
     }
+
+    /**
+     * linkMessageToCard сохраняет связь и findCardByLinkedMessage её находит.
+     */
+    public function test_link_message_to_card_and_find_by_linked_message(): void
+    {
+        $this->repository->linkMessageToCard('100', 555, 'card-id-abc', 'https://trello.com/c/abc');
+
+        $result = $this->repository->findCardByLinkedMessage('100', 555);
+
+        $this->assertNotNull($result);
+        $this->assertSame('card-id-abc', $result['card_id']);
+        $this->assertSame('https://trello.com/c/abc', $result['card_url']);
+    }
+
+    /**
+     * findCardByLinkedMessage возвращает null если связь не зарегистрирована.
+     */
+    public function test_find_card_by_linked_message_returns_null_when_not_found(): void
+    {
+        $result = $this->repository->findCardByLinkedMessage('100', 9999);
+
+        $this->assertNull($result);
+    }
+
+    /**
+     * findCardByLinkedMessage не находит запись с другим chat_id.
+     */
+    public function test_find_card_by_linked_message_returns_null_for_wrong_chat(): void
+    {
+        $this->repository->linkMessageToCard('100', 555, 'card-id-abc', 'https://trello.com/c/abc');
+
+        $result = $this->repository->findCardByLinkedMessage('999', 555);
+
+        $this->assertNull($result);
+    }
 }
