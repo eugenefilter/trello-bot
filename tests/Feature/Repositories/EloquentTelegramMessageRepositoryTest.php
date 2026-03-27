@@ -219,6 +219,51 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_find_card_by_bot_message_id_returns_card_when_exists(): void
+    {
+        $original = $this->repository->firstOrCreate($this->textUpdate());
+
+        TrelloCardLog::create([
+            'telegram_message_id' => $original['id'],
+            'trello_card_id' => 'card-bot-reply',
+            'trello_card_url' => 'https://trello.com/c/bot-reply',
+            'trello_list_id' => 'list-1',
+            'status' => 'success',
+            'bot_message_id' => 5555,
+        ]);
+
+        $result = $this->repository->findCardByBotMessageId('1', 5555);
+
+        $this->assertNotNull($result);
+        $this->assertSame('card-bot-reply', $result['card_id']);
+        $this->assertSame('https://trello.com/c/bot-reply', $result['card_url']);
+    }
+
+    public function test_find_card_by_bot_message_id_returns_null_when_not_found(): void
+    {
+        $result = $this->repository->findCardByBotMessageId('1', 9999);
+
+        $this->assertNull($result);
+    }
+
+    public function test_find_card_by_bot_message_id_returns_null_when_wrong_chat(): void
+    {
+        $original = $this->repository->firstOrCreate($this->textUpdate());
+
+        TrelloCardLog::create([
+            'telegram_message_id' => $original['id'],
+            'trello_card_id' => 'card-bot-reply',
+            'trello_card_url' => 'https://trello.com/c/bot-reply',
+            'trello_list_id' => 'list-1',
+            'status' => 'success',
+            'bot_message_id' => 5555,
+        ]);
+
+        $result = $this->repository->findCardByBotMessageId('999', 5555);
+
+        $this->assertNull($result);
+    }
+
     // --- Fixtures ---
 
     private function photoUpdate(): array
@@ -318,5 +363,41 @@ class EloquentTelegramMessageRepositoryTest extends TestCase
                 ],
             ],
         ];
+    }
+
+    /**
+     * linkMessageToCard сохраняет связь и findCardByLinkedMessage её находит.
+     */
+    public function test_link_message_to_card_and_find_by_linked_message(): void
+    {
+        $this->repository->linkMessageToCard('100', 555, 'card-id-abc', 'https://trello.com/c/abc');
+
+        $result = $this->repository->findCardByLinkedMessage('100', 555);
+
+        $this->assertNotNull($result);
+        $this->assertSame('card-id-abc', $result['card_id']);
+        $this->assertSame('https://trello.com/c/abc', $result['card_url']);
+    }
+
+    /**
+     * findCardByLinkedMessage возвращает null если связь не зарегистрирована.
+     */
+    public function test_find_card_by_linked_message_returns_null_when_not_found(): void
+    {
+        $result = $this->repository->findCardByLinkedMessage('100', 9999);
+
+        $this->assertNull($result);
+    }
+
+    /**
+     * findCardByLinkedMessage не находит запись с другим chat_id.
+     */
+    public function test_find_card_by_linked_message_returns_null_for_wrong_chat(): void
+    {
+        $this->repository->linkMessageToCard('100', 555, 'card-id-abc', 'https://trello.com/c/abc');
+
+        $result = $this->repository->findCardByLinkedMessage('999', 555);
+
+        $this->assertNull($result);
     }
 }

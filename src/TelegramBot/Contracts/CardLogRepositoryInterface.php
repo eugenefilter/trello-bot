@@ -30,4 +30,9 @@ interface CardLogRepositoryInterface
         string $listId,
         string $errorMessage,
     ): void;
+
+    /**
+     * Сохраняет message_id сообщения бота для последующего определения ответов на него.
+     */
+    public function setBotMessageId(int $telegramMessageId, int $botMessageId): void;
 }

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace TelegramBot\Services;
 
 use Illuminate\Support\Facades\Log;
+use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\RoutingResultDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use Throwable;
@@ -43,6 +45,7 @@ class TelegramUpdateProcessor
         private readonly TelegramAdapterInterface $telegram,
         private readonly TrelloAdapterInterface $trello,
         private readonly TelegramFileDownloader $fileDownloader,
+        private readonly CardLogRepositoryInterface $cardLog,
     ) {}
 
     /**
@@ -58,6 +61,17 @@ class TelegramUpdateProcessor
             $this->repository->markSkipped($telegramMessageId, 'Неподдерживаемый тип сообщения');
 
             return;
+        }
+
+        if ($dto->replyToMessageId !== null && ! $dto->isCommand()) {
+            $card = $this->repository->findCardByBotMessageId($dto->chatId, $dto->replyToMessageId)
+                ?? $this->repository->findCardByLinkedMessage($dto->chatId, $dto->replyToMessageId);
+
+            if ($card !== null) {
+                $this->handleBotReply($dto, $card, $telegramMessageId);
+
+                return;
+            }
         }
 
         if ($dto->mediaGroupId !== null) {
@@ -102,7 +116,7 @@ class TelegramUpdateProcessor
 
         $locale = $this->resolveLocale($dto->languageCode);
 
-        $this->telegram->sendMessage(
+        $botMessageId = $this->telegram->sendMessage(
             $dto->chatId,
             $this->buildReplyText($rendered->listName, $result->url, $locale),
             [
@@ -111,11 +125,121 @@ class TelegramUpdateProcessor
             ],
         );
 
+        if ($botMessageId !== null) {
+            $this->cardLog->setBotMessageId($telegramMessageId, $botMessageId);
+        }
+
         if ($dto->mediaGroupId !== null) {
             $this->attachSkippedGroupParts($dto->mediaGroupId, $result->id, $telegramMessageId);
         }
 
         $this->repository->markProcessed($telegramMessageId);
+    }
+
+    /**
+     * Обрабатывает ответ пользователя на сообщение бота с подтверждением создания карточки.
+     * Текст → комментарий в Trello. Файлы/фото → прикрепление к карточке.
+     */
+    private function handleBotReply(TelegramMessageDTO $dto, array $card, int $telegramMessageId): void
+    {
+        $locale = $this->resolveLocale($dto->languageCode);
+
+        $allFiles = [...$dto->photos, ...$dto->documents];
+        $text = $dto->text ?? $dto->caption ?? '';
+        $attachmentUrls = [];
+        $firstAttachmentResult = null;
+
+        foreach ($allFiles as $fileId) {
+            try {
+                $file = $this->fileDownloader->download($fileId, $telegramMessageId);
+                $result = $this->trello->attachFile($card['card_id'], $file->localPath, $file->mimeType);
+
+                if ($result !== null) {
+                    if ($firstAttachmentResult === null) {
+                        $firstAttachmentResult = $result;
+                    }
+
+                    if ($result->url !== null) {
+                        $attachmentUrls[] = $result->url;
+                    }
+                }
+            } catch (Throwable $e) {
+                Log::warning('Failed to attach reply file to Trello card', [
+                    'card_id' => $card['card_id'],
+                    'file_id' => $fileId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $commentActionId = null;
+
+        if ($text !== '') {
+            $commentText = ! empty($attachmentUrls)
+                ? $text."\n\n".implode("\n", $attachmentUrls)
+                : $text;
+
+            $commentActionId = $this->trello->addComment($card['card_id'], $commentText);
+        }
+
+        $notificationKey = ! empty($allFiles) ? 'bot.file_attached' : 'bot.comment_added';
+
+        $options = ['parse_mode' => 'HTML'];
+        $keyboard = $this->buildReplyActionKeyboard($commentActionId, $firstAttachmentResult, $card['card_id'], $locale);
+
+        if ($keyboard !== null) {
+            $options['reply_markup'] = json_encode($keyboard);
+        }
+
+        $this->telegram->sendMessage(
+            $dto->chatId,
+            trans($notificationKey, ['url' => $card['card_url']], $locale),
+            $options,
+        );
+
+        $this->repository->markProcessed($telegramMessageId);
+
+        if ($dto->messageId !== null) {
+            try {
+                $this->repository->linkMessageToCard($dto->chatId, $dto->messageId, $card['card_id'], $card['card_url']);
+            } catch (Throwable $e) {
+                Log::warning('Failed to link user message to card', [
+                    'chat_id' => $dto->chatId,
+                    'message_id' => $dto->messageId,
+                    'card_id' => $card['card_id'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function buildReplyActionKeyboard(
+        ?string $commentActionId,
+        ?AttachmentResult $attachmentResult,
+        string $cardId,
+        string $locale,
+    ): ?array {
+        $buttons = [];
+
+        if ($commentActionId !== null) {
+            $buttons[] = [
+                'text' => trans('bot.delete_comment_button', [], $locale),
+                'callback_data' => "delete_comment:{$commentActionId}",
+            ];
+        }
+
+        if ($attachmentResult !== null) {
+            $buttons[] = [
+                'text' => trans('bot.delete_attachment_button', [], $locale),
+                'callback_data' => "delete_attachment:{$cardId}/{$attachmentResult->id}",
+            ];
+        }
+
+        if (empty($buttons)) {
+            return null;
+        }
+
+        return ['inline_keyboard' => [$buttons]];
     }
 
     private function attachSkippedGroupParts(string $mediaGroupId, string $cardId, int $excludeMessageId): void

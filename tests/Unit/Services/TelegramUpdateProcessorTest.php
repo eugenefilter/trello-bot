@@ -7,11 +7,13 @@ namespace Tests\Unit\Services;
 use DateTimeImmutable;
 use Mockery;
 use Mockery\MockInterface;
+use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\DownloadedFile;
 use TelegramBot\DTOs\ReplyMessageDTO;
@@ -45,6 +47,8 @@ class TelegramUpdateProcessorTest extends TestCase
 
     private MockInterface $fileDownloader;
 
+    private MockInterface $cardLog;
+
     private TelegramUpdateProcessor $processor;
 
     protected function setUp(): void
@@ -58,6 +62,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->telegram = Mockery::mock(TelegramAdapterInterface::class);
         $this->trello = Mockery::mock(TrelloAdapterInterface::class);
         $this->fileDownloader = Mockery::mock(TelegramFileDownloader::class);
+        $this->cardLog = Mockery::mock(CardLogRepositoryInterface::class);
 
         $this->processor = new TelegramUpdateProcessor(
             $this->repository,
@@ -68,6 +73,7 @@ class TelegramUpdateProcessorTest extends TestCase
             $this->telegram,
             $this->trello,
             $this->fileDownloader,
+            $this->cardLog,
         );
     }
 
@@ -505,6 +511,461 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->processor->process(1);
     }
 
+    /**
+     * После создания карточки bot_message_id сохраняется в cardLog.
+     */
+    public function test_bot_message_id_stored_after_card_creation(): void
+    {
+        $dto = $this->makeMessageDTO();
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
+
+        $this->telegram->shouldReceive('sendMessage')->once()->andReturn(7777);
+
+        $this->cardLog
+            ->shouldReceive('setBotMessageId')
+            ->once()
+            ->with(1, 7777);
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Если sendMessage вернул null (ошибка), setBotMessageId не вызывается.
+     */
+    public function test_bot_message_id_not_stored_when_send_fails(): void
+    {
+        $dto = $this->makeMessageDTO();
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
+
+        $this->telegram->shouldReceive('sendMessage')->once()->andReturn(null);
+
+        $this->cardLog->shouldNotReceive('setBotMessageId');
+
+        $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с текстом → добавляет комментарий в Trello.
+     */
+    public function test_reply_to_bot_message_with_text_adds_comment(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Добавляю комментарий', replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'Добавляю комментарий');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->cardCreator->shouldNotReceive('create');
+        $this->routing->shouldNotReceive('resolve');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с файлом → прикрепляет файл к карточке.
+     */
+    public function test_reply_to_bot_message_with_file_attaches_to_card(): void
+    {
+        $dto = $this->makeReplyToBotDTO(documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/doc.pdf', 'application/pdf');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->cardCreator->shouldNotReceive('create');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с фото → прикрепляет фото к карточке.
+     */
+    public function test_reply_to_bot_message_with_photo_attaches_to_card(): void
+    {
+        $dto = $this->makeReplyToBotDTO(photos: ['photo-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('photo-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/photo.jpg', 'image/jpeg'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/photo.jpg', 'image/jpeg');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->cardCreator->shouldNotReceive('create');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с текстом И файлом → файл прикрепляется, комментарий содержит ссылку на вложение.
+     */
+    public function test_reply_to_bot_message_with_text_and_file_adds_both(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Комментарий к файлу', documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/doc.pdf', 'application/pdf')
+            ->andReturn(new AttachmentResult('att-id-1', 'https://trello-attachments.s3.amazonaws.com/abc/doc.pdf'));
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->withArgs(function (string $cardId, string $text) {
+                return $cardId === 'card-abc'
+                    && str_contains($text, 'Комментарий к файлу')
+                    && str_contains($text, 'https://trello-attachments.s3.amazonaws.com/abc/doc.pdf');
+            })
+            ->andReturn('action-id-1');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с текстом без файла → комментарий без ссылки на вложение.
+     */
+    public function test_reply_with_text_only_adds_comment_without_attachment_url(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Просто комментарий', replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->withArgs(function (string $cardId, string $text) {
+                return $cardId === 'card-abc'
+                    && $text === 'Просто комментарий';
+            });
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Команда в ответе на сообщение бота → обрабатывается как обычное создание карточки.
+     */
+    public function test_command_reply_to_bot_message_creates_card_normally(): void
+    {
+        $dto = $this->makeCommandDTO(text: '/bug новый баг', command: '/bug');
+        // replyToMessageId не установлен → не проверяем findCardByBotMessageId
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldNotReceive('findCardByBotMessageId');
+        $this->routing->shouldReceive('resolve')->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на неизвестное сообщение (не на сообщение бота) → обычный флоу.
+     */
+    public function test_reply_to_unknown_message_proceeds_normally(): void
+    {
+        $dto = new TelegramMessageDTO(
+            messageType: 'text',
+            text: 'просто текст',
+            caption: null,
+            photos: [],
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'private',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            replyToMessageId: 9999,
+        );
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 9999)->andReturn(null);
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('100', 9999)->andReturn(null);
+
+        // Не найдено — идёт в обычный флоу
+        $this->routing->shouldReceive('resolve')->once()->andReturn($this->makeRoutingResult());
+        $this->cardCreator->shouldReceive('create')->once()
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once()->andReturn(null);
+        $this->repository->shouldReceive('markProcessed')->once();
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на linked-сообщение (не на сообщение бота, а на сообщение пользователя,
+     * ранее связанное с карточкой) → добавляет комментарий/файл в Trello.
+     */
+    public function test_reply_to_linked_message_is_processed_as_bot_reply(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'ответ на свой комментарий', replyToMessageId: 101);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+
+        // Сначала проверяем bot_message_id — не находим
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 101)->andReturn(null);
+
+        // Затем проверяем linked_message — находим
+        $this->repository->shouldReceive('findCardByLinkedMessage')
+            ->once()->with('100', 101)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'ответ на свой комментарий');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->cardCreator->shouldNotReceive('create');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * handleBotReply сохраняет message_id пользователя как linked для будущих ответов.
+     */
+    public function test_handle_bot_reply_links_user_message_to_card(): void
+    {
+        $dto = $this->makeReplyToBotDTOWithMessageId(text: 'Добавляю комментарий', replyToMessageId: 8888, messageId: 101);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')->once()->andReturn(null);
+
+        $this->repository->shouldReceive('linkMessageToCard')
+            ->once()->with('100', 101, 'card-abc', 'https://trello.com/c/card-abc');
+
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с текстом → уведомление содержит inline-кнопку "Удалить комментарий".
+     */
+    public function test_reply_with_text_sends_delete_comment_keyboard(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Добавляю комментарий', replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->trello->shouldReceive('addComment')
+            ->once()->with('card-abc', 'Добавляю комментарий')
+            ->andReturn('action-id-abc');
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+
+                return count($buttons) === 1
+                    && str_contains($buttons[0]['callback_data'], 'delete_comment:action-id-abc');
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ на сообщение бота с файлом → уведомление содержит inline-кнопку "Удалить файл".
+     */
+    public function test_reply_with_file_sends_delete_attachment_keyboard(): void
+    {
+        $dto = $this->makeReplyToBotDTO(documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()->with('card-abc', '/tmp/doc.pdf', 'application/pdf')
+            ->andReturn(new AttachmentResult('att-id-xyz', 'https://trello.com/att/1'));
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+
+                return count($buttons) === 1
+                    && str_contains($buttons[0]['callback_data'], 'delete_attachment:card-abc/att-id-xyz');
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с текстом И файлом → две кнопки: "Удалить комментарий" и "Удалить файл".
+     */
+    public function test_reply_with_text_and_file_sends_both_delete_buttons(): void
+    {
+        $dto = $this->makeReplyToBotDTO(text: 'Комментарий', documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()
+            ->andReturn(new AttachmentResult('att-id-xyz', 'https://trello.com/att/1'));
+
+        $this->trello->shouldReceive('addComment')
+            ->once()
+            ->andReturn('action-id-abc');
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                $keyboard = json_decode($options['reply_markup'] ?? '{}', true);
+                $buttons = $keyboard['inline_keyboard'][0] ?? [];
+                $callbackData = array_column($buttons, 'callback_data');
+
+                return count($buttons) === 2
+                    && in_array('delete_comment:action-id-abc', $callbackData, true)
+                    && in_array('delete_attachment:card-abc/att-id-xyz', $callbackData, true);
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Ответ с файлом, но attachFile вернул null (нет ID) → нет кнопки удаления.
+     */
+    public function test_reply_with_file_no_keyboard_when_attachment_result_is_null(): void
+    {
+        $dto = $this->makeReplyToBotDTO(documents: ['doc-file-id'], replyToMessageId: 8888);
+
+        $card = ['card_id' => 'card-abc', 'card_url' => 'https://trello.com/c/card-abc'];
+
+        $this->repository->shouldReceive('getPayload')->andReturn([]);
+        $this->parser->shouldReceive('parse')->andReturn($dto);
+        $this->repository->shouldReceive('findCardByBotMessageId')
+            ->once()->with('100', 8888)->andReturn($card);
+
+        $this->fileDownloader->shouldReceive('download')
+            ->once()->with('doc-file-id', 1)
+            ->andReturn(new DownloadedFile('/tmp/doc.pdf', 'application/pdf'));
+
+        $this->trello->shouldReceive('attachFile')
+            ->once()
+            ->andReturn(null);
+
+        $this->telegram->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) {
+                return ! isset($options['reply_markup']);
+            });
+
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->process(1);
+    }
+
     // --- Fixtures ---
 
     private function makeMessageDTO(): TelegramMessageDTO
@@ -701,6 +1162,54 @@ class TelegramUpdateProcessorTest extends TestCase
             sentAt: new DateTimeImmutable,
             replyToMessage: $replyToMessage,
             languageCode: $languageCode,
+        );
+    }
+
+    private function makeReplyToBotDTO(
+        ?string $text = null,
+        array $photos = [],
+        array $documents = [],
+        int $replyToMessageId = 8888,
+    ): TelegramMessageDTO {
+        return new TelegramMessageDTO(
+            messageType: empty($photos) && empty($documents) ? 'text' : 'photo',
+            text: $text,
+            caption: null,
+            photos: $photos,
+            documents: $documents,
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            replyToMessageId: $replyToMessageId,
+        );
+    }
+
+    private function makeReplyToBotDTOWithMessageId(
+        ?string $text = null,
+        array $photos = [],
+        array $documents = [],
+        int $replyToMessageId = 8888,
+        int $messageId = 101,
+    ): TelegramMessageDTO {
+        return new TelegramMessageDTO(
+            messageType: empty($photos) && empty($documents) ? 'text' : 'photo',
+            text: $text,
+            caption: null,
+            photos: $photos,
+            documents: $documents,
+            userId: 42,
+            chatId: '100',
+            chatType: 'supergroup',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            messageId: $messageId,
+            replyToMessageId: $replyToMessageId,
         );
     }
 

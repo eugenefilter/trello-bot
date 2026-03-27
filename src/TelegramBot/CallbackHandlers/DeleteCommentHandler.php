@@ -10,12 +10,12 @@ use TelegramBot\DTOs\TelegramCallbackDTO;
 use Throwable;
 
 /**
- * Обрабатывает действие "delete:{shortLink}" — удаляет карточку Trello.
+ * Обрабатывает действие "delete_comment:{actionId}" — удаляет комментарий Trello.
  *
  * При успехе: подтверждает callback, удаляет сообщение из чата, шлёт подтверждение.
  * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, сообщение не удаляет.
  */
-class DeleteCardHandler implements CallbackActionHandlerInterface
+class DeleteCommentHandler implements CallbackActionHandlerInterface
 {
     public function __construct(
         private readonly TelegramAdapterInterface $telegram,
@@ -27,9 +27,9 @@ class DeleteCardHandler implements CallbackActionHandlerInterface
         $locale = $this->resolveLocale($dto->languageCode);
 
         try {
-            $this->trello->deleteCard($payload);
+            $this->trello->deleteComment($payload);
         } catch (Throwable) {
-            $text = trans('bot.card_delete_failed', [], $locale);
+            $text = trans('bot.comment_delete_failed', [], $locale);
 
             $this->telegram->answerCallbackQuery($dto->callbackId, $text);
             $this->telegram->sendMessage($dto->chatId, $text);
@@ -37,7 +37,7 @@ class DeleteCardHandler implements CallbackActionHandlerInterface
             return;
         }
 
-        $text = trans('bot.card_deleted', [], $locale);
+        $text = trans('bot.comment_deleted', [], $locale);
 
         $this->telegram->answerCallbackQuery($dto->callbackId, $text);
         $this->telegram->deleteMessage($dto->chatId, $dto->messageId);

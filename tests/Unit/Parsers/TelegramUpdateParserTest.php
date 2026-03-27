@@ -338,6 +338,26 @@ class TelegramUpdateParserTest extends TestCase
         $this->assertNull($dto->replyToMessage);
     }
 
+    /**
+     * reply_to_message есть → replyToMessageId содержит message_id цитируемого сообщения.
+     */
+    public function test_extracts_reply_to_message_id(): void
+    {
+        $dto = $this->parser->parse($this->replyToTextUpdate('Текст поста'));
+
+        $this->assertSame(199, $dto->replyToMessageId);
+    }
+
+    /**
+     * Без reply_to_message → replyToMessageId равен null.
+     */
+    public function test_reply_to_message_id_is_null_when_no_reply(): void
+    {
+        $dto = $this->parser->parse($this->textUpdate('Hello'));
+
+        $this->assertNull($dto->replyToMessageId);
+    }
+
     public function test_extracts_media_group_id_when_present(): void
     {
         $update = $this->photoUpdate();

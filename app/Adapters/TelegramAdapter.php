@@ -32,18 +32,24 @@ class TelegramAdapter implements TelegramAdapterInterface
      *
      * Ошибки логируются как warning — не критично для основного потока.
      */
-    public function sendMessage(string $chatId, string $text, array $options = []): void
+    public function sendMessage(string $chatId, string $text, array $options = []): ?int
     {
         try {
-            $this->telegram->sendMessage(array_merge([
+            $response = $this->telegram->sendMessage(array_merge([
                 'chat_id' => $chatId,
                 'text' => $text,
             ], $options));
+
+            $messageId = $response->offsetGet('message_id');
+
+            return $messageId !== null ? (int) $messageId : null;
         } catch (\Throwable $e) {
             Log::warning('Telegram sendMessage failed', [
                 'chat_id' => $chatId,
                 'error' => $e->getMessage(),
             ]);
+
+            return null;
         }
     }
 
@@ -101,6 +107,25 @@ class TelegramAdapter implements TelegramAdapterInterface
             ]);
         } catch (\Throwable $e) {
             Log::warning('Telegram removeInlineKeyboard failed', [
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function deleteMessage(string $chatId, int $messageId): void
+    {
+        try {
+            $this->telegram->deleteMessage([
+                'chat_id' => $chatId,
+                'message_id' => $messageId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Telegram deleteMessage failed', [
                 'chat_id' => $chatId,
                 'message_id' => $messageId,
                 'error' => $e->getMessage(),

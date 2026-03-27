@@ -11,6 +11,7 @@ use Mockery;
 use Mockery\MockInterface;
 use TelegramBot\Adapters\TrelloAdapter;
 use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloAuthException;
@@ -225,7 +226,7 @@ class TrelloAdapterTest extends TestCase
         $tmpFile = $this->createTmpFile();
 
         Http::fake([
-            'api.trello.com/*' => Http::response(['id' => 'attachment-1'], 200),
+            'api.trello.com/*' => Http::response(['id' => 'attachment-1', 'url' => 'https://trello.com/attach/1'], 200),
         ]);
 
         $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
@@ -236,6 +237,61 @@ class TrelloAdapterTest extends TestCase
 
             return true;
         });
+    }
+
+    /**
+     * attachFile возвращает AttachmentResult с id и url из ответа Trello.
+     */
+    public function test_attach_file_returns_attachment_result(): void
+    {
+        $tmpFile = $this->createTmpFile();
+
+        Http::fake([
+            'api.trello.com/*' => Http::response([
+                'id' => 'attachment-1',
+                'url' => 'https://trello-attachments.s3.amazonaws.com/abc/photo.jpg',
+            ], 200),
+        ]);
+
+        $result = $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        $this->assertInstanceOf(AttachmentResult::class, $result);
+        $this->assertSame('attachment-1', $result->id);
+        $this->assertSame('https://trello-attachments.s3.amazonaws.com/abc/photo.jpg', $result->url);
+    }
+
+    /**
+     * attachFile возвращает AttachmentResult с url=null если url отсутствует в ответе.
+     */
+    public function test_attach_file_returns_result_with_null_url_when_url_absent(): void
+    {
+        $tmpFile = $this->createTmpFile();
+
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'attachment-1'], 200),
+        ]);
+
+        $result = $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        $this->assertInstanceOf(AttachmentResult::class, $result);
+        $this->assertSame('attachment-1', $result->id);
+        $this->assertNull($result->url);
+    }
+
+    /**
+     * attachFile возвращает null если id отсутствует в ответе Trello.
+     */
+    public function test_attach_file_returns_null_when_id_absent(): void
+    {
+        $tmpFile = $this->createTmpFile();
+
+        Http::fake([
+            'api.trello.com/*' => Http::response(['url' => 'https://trello-attachments.s3.amazonaws.com/abc/photo.jpg'], 200),
+        ]);
+
+        $result = $this->adapter->attachFile('card-xyz', $tmpFile, 'image/jpeg');
+
+        $this->assertNull($result);
     }
 
     /**
@@ -348,6 +404,130 @@ class TrelloAdapterTest extends TestCase
         $this->expectException(TrelloAuthException::class);
 
         $this->adapter->deleteCard('AbCd1234');
+    }
+
+    /**
+     * addComment отправляет POST /1/cards/{id}/actions/comments с текстом.
+     */
+    public function test_add_comment_sends_post_to_correct_endpoint(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'comment-1'], 200),
+        ]);
+
+        $this->adapter->addComment('card-id-abc', 'Это комментарий к карточке');
+
+        Http::assertSent(function ($request) {
+            $this->assertStringContainsString('/1/cards/card-id-abc/actions/comments', $request->url());
+            $this->assertSame('POST', $request->method());
+            $this->assertSame('Это комментарий к карточке', $request['text']);
+
+            return true;
+        });
+    }
+
+    /**
+     * addComment возвращает id добавленного комментария (Trello action ID).
+     */
+    public function test_add_comment_returns_action_id(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response(['id' => 'action-id-xyz'], 200),
+        ]);
+
+        $actionId = $this->adapter->addComment('card-id-abc', 'Текст');
+
+        $this->assertSame('action-id-xyz', $actionId);
+    }
+
+    /**
+     * addComment возвращает null если id отсутствует в ответе.
+     */
+    public function test_add_comment_returns_null_when_id_absent(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response(['type' => 'commentCard'], 200),
+        ]);
+
+        $actionId = $this->adapter->addComment('card-id-abc', 'Текст');
+
+        $this->assertNull($actionId);
+    }
+
+    /**
+     * addComment при ошибке 401 бросает TrelloAuthException.
+     */
+    public function test_add_comment_throws_auth_exception_on_401(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('invalid key', 401),
+        ]);
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->addComment('card-id-abc', 'Текст');
+    }
+
+    /**
+     * deleteComment отправляет DELETE /1/actions/{id}.
+     */
+    public function test_delete_comment_sends_correct_request(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('', 200),
+        ]);
+
+        $this->adapter->deleteComment('action-id-xyz');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/1/actions/action-id-xyz')
+                && $request->method() === 'DELETE';
+        });
+    }
+
+    /**
+     * deleteComment при 401 бросает TrelloAuthException.
+     */
+    public function test_delete_comment_throws_auth_exception_on_401(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('invalid key', 401),
+        ]);
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->deleteComment('action-id-xyz');
+    }
+
+    /**
+     * deleteAttachment отправляет DELETE /1/cards/{cardId}/attachments/{attachmentId}.
+     */
+    public function test_delete_attachment_sends_correct_request(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('', 200),
+        ]);
+
+        $this->adapter->deleteAttachment('card-id-abc', 'att-id-xyz');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/1/cards/card-id-abc/attachments/att-id-xyz')
+                && $request->method() === 'DELETE';
+        });
+    }
+
+    /**
+     * deleteAttachment при 401 бросает TrelloAuthException.
+     */
+    public function test_delete_attachment_throws_auth_exception_on_401(): void
+    {
+        Http::fake([
+            'api.trello.com/*' => Http::response('invalid key', 401),
+        ]);
+
+        $this->expectException(TrelloAuthException::class);
+
+        $this->adapter->deleteAttachment('card-id-abc', 'att-id-xyz');
     }
 
     private function cardDTO(): TrelloCardDTO

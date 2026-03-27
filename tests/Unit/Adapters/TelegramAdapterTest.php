@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Mockery;
 use Mockery\MockInterface;
 use Telegram\Bot\Api;
+use Telegram\Bot\Objects\Message;
 use Tests\TestCase;
 
 /**
@@ -92,6 +93,40 @@ class TelegramAdapterTest extends TestCase
     }
 
     /**
+     * sendMessage возвращает message_id отправленного сообщения.
+     */
+    public function test_send_message_returns_message_id(): void
+    {
+        $message = Mockery::mock(Message::class);
+        $message->shouldReceive('offsetGet')->with('message_id')->andReturn(9876);
+
+        $this->bot
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->andReturn($message);
+
+        $result = $this->adapter->sendMessage('123456', 'Текст');
+
+        $this->assertSame(9876, $result);
+    }
+
+    /**
+     * sendMessage возвращает null при ошибке Telegram SDK.
+     */
+    public function test_send_message_returns_null_on_error(): void
+    {
+        Log::spy();
+
+        $this->bot
+            ->shouldReceive('sendMessage')
+            ->andThrow(new \RuntimeException('Bad Request'));
+
+        $result = $this->adapter->sendMessage('123456', 'Текст');
+
+        $this->assertNull($result);
+    }
+
+    /**
      * sendMessage передаёт reply_markup когда он указан в options.
      */
     public function test_send_message_passes_reply_markup_via_options(): void
@@ -141,5 +176,37 @@ class TelegramAdapterTest extends TestCase
             });
 
         $this->adapter->removeInlineKeyboard('100', 42);
+    }
+
+    /**
+     * deleteMessage вызывает SDK deleteMessage с chat_id и message_id.
+     */
+    public function test_delete_message_calls_sdk(): void
+    {
+        $this->bot
+            ->shouldReceive('deleteMessage')
+            ->once()
+            ->withArgs(function (array $params) {
+                return $params['chat_id'] === '100'
+                    && $params['message_id'] === 42;
+            });
+
+        $this->adapter->deleteMessage('100', 42);
+    }
+
+    /**
+     * deleteMessage логирует warning при ошибке, не пробрасывает исключение.
+     */
+    public function test_delete_message_logs_warning_on_error(): void
+    {
+        Log::spy();
+
+        $this->bot
+            ->shouldReceive('deleteMessage')
+            ->andThrow(new \RuntimeException('message not found'));
+
+        $this->adapter->deleteMessage('100', 42);
+
+        Log::shouldHaveReceived('warning')->once();
     }
 }

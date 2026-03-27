@@ -62,4 +62,26 @@ interface TelegramMessageRepositoryInterface
      * @return array{telegram_message_id: int, card_id: string, card_url: string}|null
      */
     public function findOriginalCardByMessage(string $chatId, int $messageId): ?array;
+
+    /**
+     * Ищет карточку по message_id сообщения бота (ответ с подтверждением создания).
+     * Используется для определения, что пользователь отвечает на сообщение бота.
+     *
+     * @return array{card_id: string, card_url: string}|null
+     */
+    public function findCardByBotMessageId(string $chatId, int $botMessageId): ?array;
+
+    /**
+     * Сохраняет связь между Telegram message_id пользователя и карточкой Trello.
+     * Вызывается после обработки reply-сообщения, чтобы последующие ответы
+     * на это сообщение также попадали в карточку.
+     */
+    public function linkMessageToCard(string $chatId, int $telegramMessageId, string $cardId, string $cardUrl): void;
+
+    /**
+     * Ищет карточку по ранее сохранённой связи с message_id пользователя.
+     *
+     * @return array{card_id: string, card_url: string}|null
+     */
+    public function findCardByLinkedMessage(string $chatId, int $telegramMessageId): ?array;
 }

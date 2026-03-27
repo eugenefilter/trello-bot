@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\TrelloApiLogRepositoryInterface;
+use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\TrelloCardDTO;
 use TelegramBot\Exceptions\TrelloAuthException;
@@ -61,9 +62,9 @@ class TrelloAdapter implements TrelloAdapterInterface
     /**
      * {@inheritDoc}
      */
-    public function attachFile(string $cardId, string $filePath, string $mimeType): void
+    public function attachFile(string $cardId, string $filePath, string $mimeType): ?AttachmentResult
     {
-        $this->call('POST', "/cards/{$cardId}/attachments", fn () => $this->http
+        $response = $this->call('POST', "/cards/{$cardId}/attachments", fn () => $this->http
             ->withQueryParameters($this->credentials())
             ->attach('file', file_get_contents($filePath), basename($filePath), ['Content-Type' => $mimeType])
             ->post(self::BASE_URL."/cards/{$cardId}/attachments")
@@ -72,6 +73,14 @@ class TrelloAdapter implements TrelloAdapterInterface
         if (file_exists($filePath)) {
             unlink($filePath);
         }
+
+        $id = $response->json('id') ?? null;
+
+        if ($id === null) {
+            return null;
+        }
+
+        return new AttachmentResult($id, $response->json('url') ?? null);
     }
 
     /**
@@ -111,6 +120,41 @@ class TrelloAdapter implements TrelloAdapterInterface
                 'name' => $name,
                 'desc' => $description,
             ])
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function addComment(string $cardId, string $text): ?string
+    {
+        $response = $this->call('POST', "/cards/{$cardId}/actions/comments", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->post(self::BASE_URL."/cards/{$cardId}/actions/comments", ['text' => $text])
+        );
+
+        return $response->json('id') ?? null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function deleteComment(string $actionId): void
+    {
+        $this->call('DELETE', "/actions/{$actionId}", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->delete(self::BASE_URL."/actions/{$actionId}")
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function deleteAttachment(string $cardId, string $attachmentId): void
+    {
+        $this->call('DELETE', "/cards/{$cardId}/attachments/{$attachmentId}", fn () => $this->http
+            ->withQueryParameters($this->credentials())
+            ->delete(self::BASE_URL."/cards/{$cardId}/attachments/{$attachmentId}")
         );
     }
 

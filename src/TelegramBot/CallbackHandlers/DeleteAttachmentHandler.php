@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace TelegramBot\CallbackHandlers;
 
+use Illuminate\Support\Facades\Log;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\DTOs\TelegramCallbackDTO;
 use Throwable;
 
 /**
- * Обрабатывает действие "delete:{shortLink}" — удаляет карточку Trello.
+ * Обрабатывает действие "delete_attachment:{cardId}/{attachmentId}" — удаляет вложение карточки.
  *
  * При успехе: подтверждает callback, удаляет сообщение из чата, шлёт подтверждение.
  * При ошибке: подтверждает callback с текстом ошибки, шлёт сообщение об ошибке, сообщение не удаляет.
  */
-class DeleteCardHandler implements CallbackActionHandlerInterface
+class DeleteAttachmentHandler implements CallbackActionHandlerInterface
 {
     public function __construct(
         private readonly TelegramAdapterInterface $telegram,
@@ -24,12 +25,23 @@ class DeleteCardHandler implements CallbackActionHandlerInterface
 
     public function handle(TelegramCallbackDTO $dto, string $payload): void
     {
+        $parts = explode('/', $payload, 2);
+
+        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+            Log::warning('DeleteAttachmentHandler: invalid payload format', ['payload' => $payload]);
+            $this->telegram->answerCallbackQuery($dto->callbackId, '');
+
+            return;
+        }
+
+        [$cardId, $attachmentId] = $parts;
+
         $locale = $this->resolveLocale($dto->languageCode);
 
         try {
-            $this->trello->deleteCard($payload);
+            $this->trello->deleteAttachment($cardId, $attachmentId);
         } catch (Throwable) {
-            $text = trans('bot.card_delete_failed', [], $locale);
+            $text = trans('bot.attachment_delete_failed', [], $locale);
 
             $this->telegram->answerCallbackQuery($dto->callbackId, $text);
             $this->telegram->sendMessage($dto->chatId, $text);
@@ -37,7 +49,7 @@ class DeleteCardHandler implements CallbackActionHandlerInterface
             return;
         }
 
-        $text = trans('bot.card_deleted', [], $locale);
+        $text = trans('bot.attachment_deleted', [], $locale);
 
         $this->telegram->answerCallbackQuery($dto->callbackId, $text);
         $this->telegram->deleteMessage($dto->chatId, $dto->messageId);
