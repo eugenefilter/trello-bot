@@ -31,6 +31,7 @@ class EloquentRoutingRuleRepository implements RoutingRuleRepositoryInterface
                 chatType: $rule->chat_type,
                 command: $rule->command,
                 hasPhoto: $rule->has_photo,
+                isForwarded: $rule->is_forwarded,
                 trelloListId: $rule->targetList->trello_list_id,
                 listName: $rule->targetList->name,
                 labelIds: $rule->label_ids ?? [],

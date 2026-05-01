@@ -9,6 +9,7 @@ use Mockery;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
 use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
+use TelegramBot\DTOs\ForwardOriginDTO;
 use TelegramBot\DTOs\RoutingRuleData;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Routing\RoutingEngine;
@@ -48,6 +49,7 @@ class RoutingEngineTest extends TestCase
         string $chatType = 'private',
         ?string $command = null,
         array $photos = [],
+        ?ForwardOriginDTO $forwardOrigin = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: $command !== null ? 'command' : ($photos ? 'photo' : 'text'),
@@ -62,6 +64,7 @@ class RoutingEngineTest extends TestCase
             username: 'testuser',
             firstName: 'Test',
             sentAt: new DateTimeImmutable,
+            forwardOrigin: $forwardOrigin,
         );
     }
 
@@ -72,6 +75,7 @@ class RoutingEngineTest extends TestCase
             chatType: $overrides['chatType'] ?? null,
             command: $overrides['command'] ?? null,
             hasPhoto: $overrides['hasPhoto'] ?? null,
+            isForwarded: $overrides['isForwarded'] ?? null,
             trelloListId: $overrides['trelloListId'] ?? 'list_default',
             listName: $overrides['listName'] ?? 'Default List',
             labelIds: $overrides['labelIds'] ?? [],
@@ -196,6 +200,64 @@ class RoutingEngineTest extends TestCase
 
         $result = $this->engine->resolve($this->makeMessage(chatType: 'private'));
         self::assertNull($result);
+    }
+
+    /**
+     * Правило с is_forwarded = true совпадает только для пересланных сообщений.
+     */
+    public function test_is_forwarded_rule_matches_only_forwarded_messages(): void
+    {
+        $rule = $this->makeRule(['isForwarded' => true, 'trelloListId' => 'list_forwarded']);
+
+        $this->repository->shouldReceive('getActiveRules')->andReturn([$rule]);
+
+        $forward = new ForwardOriginDTO(type: 'user', firstName: 'Александр', username: 'Alex_itsellopt', userId: 579219779);
+
+        // Пересланное — совпадает
+        $result = $this->engine->resolve($this->makeMessage(forwardOrigin: $forward));
+        self::assertSame('list_forwarded', $result?->listId);
+
+        // Обычное — не совпадает
+        $result = $this->engine->resolve($this->makeMessage());
+        self::assertNull($result);
+    }
+
+    /**
+     * Правило с is_forwarded = false совпадает только для НЕпересланных сообщений.
+     */
+    public function test_is_forwarded_false_matches_only_non_forwarded(): void
+    {
+        $rule = $this->makeRule(['isForwarded' => false, 'trelloListId' => 'list_direct']);
+
+        $this->repository->shouldReceive('getActiveRules')->andReturn([$rule]);
+
+        $forward = new ForwardOriginDTO(type: 'user', firstName: 'Александр');
+
+        // Обычное — совпадает
+        $result = $this->engine->resolve($this->makeMessage());
+        self::assertSame('list_direct', $result?->listId);
+
+        // Пересланное — не совпадает
+        $result = $this->engine->resolve($this->makeMessage(forwardOrigin: $forward));
+        self::assertNull($result);
+    }
+
+    /**
+     * Правило с is_forwarded = null совпадает и для пересланных, и для обычных.
+     */
+    public function test_is_forwarded_null_matches_any_message(): void
+    {
+        $rule = $this->makeRule(['isForwarded' => null, 'trelloListId' => 'list_any']);
+
+        $this->repository->shouldReceive('getActiveRules')->andReturn([$rule]);
+
+        $forward = new ForwardOriginDTO(type: 'user', firstName: 'Александр');
+
+        $result = $this->engine->resolve($this->makeMessage());
+        self::assertSame('list_any', $result?->listId);
+
+        $result = $this->engine->resolve($this->makeMessage(forwardOrigin: $forward));
+        self::assertSame('list_any', $result?->listId);
     }
 
     /**

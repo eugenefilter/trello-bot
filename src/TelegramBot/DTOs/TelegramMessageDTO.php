@@ -67,4 +67,12 @@ class TelegramMessageDTO
     {
         return $this->command !== null;
     }
+
+    /**
+     * Является ли сообщение переадресованным (содержит forward_origin или forward_from).
+     */
+    public function isForwarded(): bool
+    {
+        return $this->forwardOrigin !== null;
+    }
 }

@@ -18,6 +18,7 @@ class RoutingRuleData
      * @param  string|null  $chatType  private | group | supergroup | null = любой
      * @param  string|null  $command  /bug | /task | null = любая команда
      * @param  bool|null  $hasPhoto  true = только с фото, null = не важно
+     * @param  bool|null  $isForwarded  true = только пересланные, false = только прямые, null = не важно
      * @param  string  $trelloListId  trello_list_id из таблицы trello_lists (реальный ID в Trello)
      * @param  string  $listName  Название списка Trello (для ответа пользователю)
      * @param  string[]  $labelIds  Trello label IDs из поля label_ids (JSON)
@@ -29,6 +30,7 @@ class RoutingRuleData
         public ?string $chatType,
         public ?string $command,
         public ?bool $hasPhoto,
+        public ?bool $isForwarded,
         public string $trelloListId,
         public string $listName,
         public array $labelIds,

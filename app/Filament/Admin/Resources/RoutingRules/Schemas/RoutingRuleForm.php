@@ -68,6 +68,14 @@ class RoutingRuleForm
                             ])
                             ->placeholder('Не важно (любое)')
                             ->default(null),
+                        Select::make('is_forwarded')
+                            ->label('Пересланное сообщение')
+                            ->options([
+                                '1' => 'Только пересланные',
+                                '0' => 'Только прямые',
+                            ])
+                            ->placeholder('Не важно (любое)')
+                            ->default(null),
                     ]),
 
                 Section::make('Действие')
