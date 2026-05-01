@@ -71,6 +71,7 @@ class RoutingEngineTest extends TestCase
     private function makeRule(array $overrides = []): RoutingRuleData
     {
         return new RoutingRuleData(
+            id: $overrides['id'] ?? 1,
             chatId: $overrides['chatId'] ?? null,
             chatType: $overrides['chatType'] ?? null,
             command: $overrides['command'] ?? null,

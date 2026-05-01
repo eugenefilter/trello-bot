@@ -59,6 +59,23 @@ npm run build
 composer run dev
 ```
 
+## Локальное тестирование вебхука
+
+Для получения webhook-запросов от Telegram на локальной машине используйте [Expose](https://expose.dev/) (через Laravel Herd):
+
+```bash
+# Запустить туннель для проекта (из директории проекта)
+cd ~/Documents/www/itsell/trello_bot && herd share
+```
+
+Скопируйте публичный URL из вывода expose (например, `https://xxxx.sharedwithexpose.com`), затем зарегистрируйте webhook:
+
+```bash
+APP_URL=https://xxxx.sharedwithexpose.com php artisan telegram:set-webhook
+```
+
+Убедитесь, что очередь запущена (`composer run dev`), — иначе сообщения сохраняются, но не обрабатываются.
+
 ## Trello Setup
 
 1. Open admin panel and create a Trello connection (`/admin/trello-connections`)

@@ -29,6 +29,7 @@ class RoutingRule extends Model
         'command',                 // null = любая команда
         'keyword',                 // null = без фильтра по ключевому слову
         'has_photo',               // null = не важно, true = только с фото
+        'is_forwarded',            // null = не важно, true = только пересланные
         'target_list_id',          // FK → trello_lists.id
         'label_ids',               // JSON-массив Trello label IDs
         'member_ids',              // JSON-массив Trello member IDs
@@ -41,6 +42,7 @@ class RoutingRule extends Model
     protected $casts = [
         'telegram_chat_id' => 'integer',
         'has_photo' => 'boolean',
+        'is_forwarded' => 'boolean',
         'label_ids' => 'array',
         'member_ids' => 'array',
         'priority' => 'integer',

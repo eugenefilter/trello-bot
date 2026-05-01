@@ -15,4 +15,5 @@ return [
     'comment_delete_failed' => '❌ Błąd podczas usuwania komentarza',
     'attachment_deleted' => '✅ Plik usunięty',
     'attachment_delete_failed' => '❌ Błąd podczas usuwania pliku',
+    'pick_list' => '📋 Wybierz gdzie utworzyć kartę:',
 ];
