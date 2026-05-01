@@ -75,6 +75,11 @@ class RoutingEngine implements RoutingEngineInterface
             return false;
         }
 
+        // Совпадение по признаку переадресованного сообщения
+        if ($rule->isForwarded !== null && $rule->isForwarded !== $message->isForwarded()) {
+            return false;
+        }
+
         return true;
     }
 }
