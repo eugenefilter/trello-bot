@@ -21,6 +21,7 @@ class TelegramMessageDTO
      * @param  string|null  $mediaGroupId  ID группы медиафайлов (если сообщение часть media group)
      * @param  ReplyMessageDTO|null  $replyToMessage  Данные цитируемого сообщения (если есть reply_to_message)
      * @param  string|null  $languageCode  IETF-код языка пользователя из Telegram (en, ru, uk, pl и др.)
+     * @param  ForwardOriginDTO|null  $forwardOrigin  Данные оригинального отправителя (если сообщение переслано)
      */
     public function __construct(
         public string $messageType,
@@ -40,6 +41,7 @@ class TelegramMessageDTO
         public ?string $languageCode = null,
         public ?int $messageId = null,
         public ?int $replyToMessageId = null,
+        public ?ForwardOriginDTO $forwardOrigin = null,
     ) {}
 
     /**

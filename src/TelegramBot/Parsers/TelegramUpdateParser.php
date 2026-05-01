@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TelegramBot\Parsers;
 
 use TelegramBot\Contracts\UpdateParserInterface;
+use TelegramBot\DTOs\ForwardOriginDTO;
 use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\TelegramCallbackDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
@@ -72,6 +73,7 @@ class TelegramUpdateParser implements UpdateParserInterface
             languageCode: $message['from']['language_code'] ?? null,
             messageId: $message['message_id'] ?? null,
             replyToMessageId: $message['reply_to_message']['message_id'] ?? null,
+            forwardOrigin: $this->extractForwardOrigin($message),
         );
     }
 
@@ -184,6 +186,46 @@ class TelegramUpdateParser implements UpdateParserInterface
             photos: $this->extractPhotos($reply),
             documents: $this->extractDocuments($reply),
         );
+    }
+
+    /**
+     * Извлекает данные оригинального отправителя переадресованного сообщения.
+     *
+     * Приоритет: forward_origin (новый API) → forward_from (старый API).
+     * Поддерживаемые типы forward_origin: user, hidden_user.
+     */
+    private function extractForwardOrigin(array $message): ?ForwardOriginDTO
+    {
+        $origin = $message['forward_origin'] ?? null;
+
+        if ($origin !== null) {
+            return match ($origin['type']) {
+                'user' => new ForwardOriginDTO(
+                    type: 'user',
+                    firstName: $origin['sender_user']['first_name'],
+                    username: $origin['sender_user']['username'] ?? null,
+                    userId: $origin['sender_user']['id'],
+                ),
+                'hidden_user' => new ForwardOriginDTO(
+                    type: 'hidden_user',
+                    firstName: $origin['sender_user_name'],
+                ),
+                default => null,
+            };
+        }
+
+        $from = $message['forward_from'] ?? null;
+
+        if ($from !== null) {
+            return new ForwardOriginDTO(
+                type: 'user',
+                firstName: $from['first_name'],
+                username: $from['username'] ?? null,
+                userId: $from['id'],
+            );
+        }
+
+        return null;
     }
 
     /**

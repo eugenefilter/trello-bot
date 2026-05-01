@@ -6,6 +6,7 @@ namespace Tests\Unit\Services;
 
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
+use TelegramBot\DTOs\ForwardOriginDTO;
 use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Services\CardTemplateRenderer;
@@ -241,6 +242,55 @@ class CardTemplateRendererTest extends TestCase
         $this->assertSame('Цитата: ', $result);
     }
 
+    /**
+     * {{forward_first_name}} заменяется именем оригинального отправителя.
+     */
+    public function test_replaces_forward_first_name(): void
+    {
+        $forward = new ForwardOriginDTO(type: 'user', firstName: 'Александр', username: 'Alex_itsellopt', userId: 579219779);
+        $dto = $this->makeDTO(forwardOrigin: $forward);
+
+        $result = $this->renderer->render('Переслал: {{forward_first_name}}', $dto);
+
+        $this->assertSame('Переслал: Александр', $result);
+    }
+
+    /**
+     * {{forward_username}} заменяется никнеймом оригинального отправителя.
+     */
+    public function test_replaces_forward_username(): void
+    {
+        $forward = new ForwardOriginDTO(type: 'user', firstName: 'Александр', username: 'Alex_itsellopt', userId: 579219779);
+        $dto = $this->makeDTO(forwardOrigin: $forward);
+
+        $result = $this->renderer->render('@{{forward_username}}', $dto);
+
+        $this->assertSame('@Alex_itsellopt', $result);
+    }
+
+    /**
+     * {{forward_first_name}} и {{forward_username}} пустые когда сообщение не переслано.
+     */
+    public function test_forward_variables_are_empty_when_not_forwarded(): void
+    {
+        $result = $this->renderer->render('{{forward_first_name}} / {{forward_username}}', $this->makeDTO());
+
+        $this->assertSame(' / ', $result);
+    }
+
+    /**
+     * {{forward_username}} пустой когда у оригинального отправителя нет username (hidden_user).
+     */
+    public function test_forward_username_is_empty_when_null(): void
+    {
+        $forward = new ForwardOriginDTO(type: 'hidden_user', firstName: 'Скрытый', username: null, userId: null);
+        $dto = $this->makeDTO(forwardOrigin: $forward);
+
+        $result = $this->renderer->render('{{forward_username}}', $dto);
+
+        $this->assertSame('', $result);
+    }
+
     // --- Fixtures ---
 
     private function makeDTO(
@@ -249,6 +299,7 @@ class CardTemplateRendererTest extends TestCase
         ?string $firstName = 'Иван',
         ?string $command = null,
         ?ReplyMessageDTO $replyToMessage = null,
+        ?ForwardOriginDTO $forwardOrigin = null,
     ): TelegramMessageDTO {
         return new TelegramMessageDTO(
             messageType: 'text',
@@ -264,6 +315,7 @@ class CardTemplateRendererTest extends TestCase
             firstName: $firstName,
             sentAt: new DateTimeImmutable('2024-06-15 14:30:00'),
             replyToMessage: $replyToMessage,
+            forwardOrigin: $forwardOrigin,
         );
     }
 }
