@@ -15,4 +15,5 @@ return [
     'comment_delete_failed' => '❌ Ошибка при удалении комментария',
     'attachment_deleted' => '✅ Файл удалён',
     'attachment_delete_failed' => '❌ Ошибка при удалении файла',
+    'pick_list' => '📋 Выбери куда создать карточку:',
 ];

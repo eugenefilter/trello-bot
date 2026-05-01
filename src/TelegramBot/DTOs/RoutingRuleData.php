@@ -14,6 +14,7 @@ namespace TelegramBot\DTOs;
 class RoutingRuleData
 {
     /**
+     * @param  int  $id  Первичный ключ записи routing_rules в БД
      * @param  int|null  $chatId  telegram_chat_id из routing_rules (null = любой чат)
      * @param  string|null  $chatType  private | group | supergroup | null = любой
      * @param  string|null  $command  /bug | /task | null = любая команда
@@ -26,6 +27,7 @@ class RoutingRuleData
      * @param  int  $priority  чем выше — тем приоритетнее при нескольких совпадениях
      */
     public function __construct(
+        public int $id,
         public ?int $chatId,
         public ?string $chatType,
         public ?string $command,

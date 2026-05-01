@@ -15,4 +15,5 @@ return [
     'comment_delete_failed' => '❌ Failed to delete comment',
     'attachment_deleted' => '✅ File deleted',
     'attachment_delete_failed' => '❌ Failed to delete file',
+    'pick_list' => '📋 Select where to create the card:',
 ];

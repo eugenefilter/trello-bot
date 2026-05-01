@@ -7,12 +7,14 @@ namespace TelegramBot\Services;
 use Illuminate\Support\Facades\Log;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
 use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\RoutingResultDTO;
+use TelegramBot\DTOs\RoutingRuleData;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use Throwable;
 
@@ -46,6 +48,7 @@ class TelegramUpdateProcessor
         private readonly TrelloAdapterInterface $trello,
         private readonly TelegramFileDownloader $fileDownloader,
         private readonly CardLogRepositoryInterface $cardLog,
+        private readonly RoutingRuleRepositoryInterface $ruleRepository,
     ) {}
 
     /**
@@ -88,7 +91,11 @@ class TelegramUpdateProcessor
         $routingResult = $this->routing->resolve($dto);
 
         if ($routingResult === null) {
-            $this->repository->markSkipped($telegramMessageId, 'Правило маршрутизации не найдено');
+            if ($dto->isForwarded()) {
+                $this->sendRulePicker($dto, $telegramMessageId);
+            } else {
+                $this->repository->markSkipped($telegramMessageId, 'Правило маршрутизации не найдено');
+            }
 
             return;
         }
@@ -112,6 +119,70 @@ class TelegramUpdateProcessor
             cardDescriptionTemplate: $this->renderer->render($routingResult->cardDescriptionTemplate, $dto),
         );
 
+        $this->createCardAndNotify($dto, $rendered, $telegramMessageId);
+    }
+
+    /**
+     * Создаёт карточку, отправляет подтверждение пользователю и помечает сообщение обработанным.
+     */
+    public function processWithRule(int $telegramMessageId, RoutingRuleData $rule): void
+    {
+        $payload = $this->repository->getPayload($telegramMessageId);
+        $dto = $this->parser->parse($payload);
+
+        if ($dto === null) {
+            return;
+        }
+
+        $rendered = new RoutingResultDTO(
+            listId: $rule->trelloListId,
+            listName: $rule->listName,
+            memberIds: $rule->memberIds,
+            labelIds: $rule->labelIds,
+            cardTitleTemplate: $this->renderer->render($rule->cardTitleTemplate, $dto),
+            cardDescriptionTemplate: $this->renderer->render($rule->cardDescriptionTemplate, $dto),
+        );
+
+        $this->createCardAndNotify($dto, $rendered, $telegramMessageId);
+    }
+
+    /**
+     * Показывает пользователю inline-клавиатуру с выбором правила маршрутизации.
+     * Вызывается когда пересланное сообщение не совпало ни с одним правилом автоматически.
+     */
+    private function sendRulePicker(TelegramMessageDTO $dto, int $telegramMessageId): void
+    {
+        $rules = $this->ruleRepository->getActiveRules();
+
+        if (empty($rules)) {
+            $this->repository->markSkipped($telegramMessageId, 'Правило маршрутизации не найдено');
+
+            return;
+        }
+
+        $locale = $this->resolveLocale($dto->languageCode);
+
+        $buttons = array_map(fn (RoutingRuleData $rule) => [
+            [
+                'text' => $rule->listName,
+                'callback_data' => "create_card:{$telegramMessageId}_{$rule->id}",
+            ],
+        ], $rules);
+
+        $this->telegram->sendMessage(
+            $dto->chatId,
+            trans('bot.pick_list', [], $locale),
+            ['reply_markup' => json_encode(['inline_keyboard' => $buttons])],
+        );
+
+        $this->repository->markSkipped($telegramMessageId, 'Показан выбор правила');
+    }
+
+    /**
+     * Общая логика создания карточки, отправки подтверждения и пометки сообщения обработанным.
+     */
+    private function createCardAndNotify(TelegramMessageDTO $dto, RoutingResultDTO $rendered, int $telegramMessageId): void
+    {
         $result = $this->cardCreator->create($dto, $rendered, $telegramMessageId);
 
         $locale = $this->resolveLocale($dto->languageCode);

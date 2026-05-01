@@ -20,4 +20,9 @@ interface RoutingRuleRepositoryInterface
      * @return RoutingRuleData[]
      */
     public function getActiveRules(): array;
+
+    /**
+     * Возвращает активное правило по его первичному ключу, или null если не найдено.
+     */
+    public function getRuleById(int $id): ?RoutingRuleData;
 }

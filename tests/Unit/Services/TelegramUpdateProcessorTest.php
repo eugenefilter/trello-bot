@@ -9,6 +9,7 @@ use Mockery;
 use Mockery\MockInterface;
 use TelegramBot\Contracts\CardLogRepositoryInterface;
 use TelegramBot\Contracts\RoutingEngineInterface;
+use TelegramBot\Contracts\RoutingRuleRepositoryInterface;
 use TelegramBot\Contracts\TelegramAdapterInterface;
 use TelegramBot\Contracts\TelegramMessageRepositoryInterface;
 use TelegramBot\Contracts\TrelloAdapterInterface;
@@ -16,8 +17,10 @@ use TelegramBot\Contracts\UpdateParserInterface;
 use TelegramBot\DTOs\AttachmentResult;
 use TelegramBot\DTOs\CreatedCardResult;
 use TelegramBot\DTOs\DownloadedFile;
+use TelegramBot\DTOs\ForwardOriginDTO;
 use TelegramBot\DTOs\ReplyMessageDTO;
 use TelegramBot\DTOs\RoutingResultDTO;
+use TelegramBot\DTOs\RoutingRuleData;
 use TelegramBot\DTOs\TelegramMessageDTO;
 use TelegramBot\Exceptions\TrelloConnectionException;
 use TelegramBot\Services\CardTemplateRenderer;
@@ -49,6 +52,8 @@ class TelegramUpdateProcessorTest extends TestCase
 
     private MockInterface $cardLog;
 
+    private MockInterface $ruleRepository;
+
     private TelegramUpdateProcessor $processor;
 
     protected function setUp(): void
@@ -63,6 +68,7 @@ class TelegramUpdateProcessorTest extends TestCase
         $this->trello = Mockery::mock(TrelloAdapterInterface::class);
         $this->fileDownloader = Mockery::mock(TelegramFileDownloader::class);
         $this->cardLog = Mockery::mock(CardLogRepositoryInterface::class);
+        $this->ruleRepository = Mockery::mock(RoutingRuleRepositoryInterface::class);
 
         $this->processor = new TelegramUpdateProcessor(
             $this->repository,
@@ -74,6 +80,7 @@ class TelegramUpdateProcessorTest extends TestCase
             $this->trello,
             $this->fileDownloader,
             $this->cardLog,
+            $this->ruleRepository,
         );
     }
 
@@ -1210,6 +1217,111 @@ class TelegramUpdateProcessorTest extends TestCase
             sentAt: new DateTimeImmutable,
             messageId: $messageId,
             replyToMessageId: $replyToMessageId,
+        );
+    }
+
+    /**
+     * Пересланное сообщение без подходящего правила → бот показывает picker с кнопками из активных правил.
+     */
+    public function test_forwarded_message_without_routing_match_shows_rule_picker(): void
+    {
+        $dto = $this->makeForwardedDTO();
+        $rule = $this->makeRuleData();
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn(null);
+        $this->ruleRepository->shouldReceive('getActiveRules')->once()->andReturn([$rule]);
+
+        $this->telegram
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->withArgs(function (string $chatId, string $text, array $options) use ($rule) {
+                $keyboard = json_decode($options['reply_markup'], true);
+                $buttons = array_column($keyboard['inline_keyboard'], null);
+                $buttonData = $buttons[0][0]['callback_data'] ?? '';
+
+                return $chatId === '100'
+                    && str_contains($buttonData, 'create_card:')
+                    && str_contains($buttonData, (string) $rule->id);
+            });
+
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Показан выбор правила');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * Пересланное сообщение, но активных правил нет → обычный skip.
+     */
+    public function test_forwarded_message_skipped_when_no_active_rules(): void
+    {
+        $dto = $this->makeForwardedDTO();
+
+        $this->repository->shouldReceive('getPayload')->once()->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($dto);
+        $this->routing->shouldReceive('resolve')->once()->andReturn(null);
+        $this->ruleRepository->shouldReceive('getActiveRules')->once()->andReturn([]);
+        $this->telegram->shouldNotReceive('sendMessage');
+        $this->repository->shouldReceive('markSkipped')->once()->with(1, 'Правило маршрутизации не найдено');
+
+        $this->processor->process(1);
+    }
+
+    /**
+     * processWithRule создаёт карточку, минуя routing, используя переданное правило.
+     */
+    public function test_process_with_rule_creates_card(): void
+    {
+        $rule = $this->makeRuleData();
+
+        $this->repository->shouldReceive('getPayload')->once()->with(1)->andReturn([]);
+        $this->parser->shouldReceive('parse')->once()->andReturn($this->makeForwardedDTO());
+        $this->cardCreator->shouldReceive('create')
+            ->once()
+            ->withArgs(fn (TelegramMessageDTO $msg, RoutingResultDTO $rendered) => $rendered->listId === $rule->trelloListId)
+            ->andReturn(new CreatedCardResult('card-1', 'AbCd1234', 'https://trello.com/c/card-1'));
+        $this->telegram->shouldReceive('sendMessage')->once();
+        $this->repository->shouldReceive('markProcessed')->once()->with(1);
+
+        $this->processor->processWithRule(1, $rule);
+    }
+
+    private function makeForwardedDTO(): TelegramMessageDTO
+    {
+        return new TelegramMessageDTO(
+            messageType: 'photo',
+            text: null,
+            caption: 'Forwarded caption',
+            photos: ['file-id-1'],
+            documents: [],
+            userId: 42,
+            chatId: '100',
+            chatType: 'private',
+            command: null,
+            username: 'testuser',
+            firstName: 'Test',
+            sentAt: new DateTimeImmutable,
+            forwardOrigin: new ForwardOriginDTO(type: 'user', firstName: 'Александр', username: 'alex'),
+        );
+    }
+
+    private function makeRuleData(): RoutingRuleData
+    {
+        return new RoutingRuleData(
+            id: 7,
+            chatId: null,
+            chatType: null,
+            command: null,
+            hasPhoto: null,
+            isForwarded: true,
+            trelloListId: 'list-xyz',
+            listName: 'Inbox',
+            labelIds: [],
+            memberIds: [],
+            cardTitleTemplate: '{{first_name}}: {{text_preview}}',
+            cardDescriptionTemplate: '{{text}}',
+            priority: 0,
         );
     }
 
