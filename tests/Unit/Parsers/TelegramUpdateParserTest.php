@@ -498,6 +498,135 @@ class TelegramUpdateParserTest extends TestCase
         ];
     }
 
+    /**
+     * forward_origin type=user → forwardOrigin заполнен с данными пользователя.
+     */
+    public function test_extracts_forward_origin_from_user(): void
+    {
+        $dto = $this->parser->parse($this->forwardedFromUserUpdate());
+
+        $this->assertNotNull($dto->forwardOrigin);
+        $this->assertSame('user', $dto->forwardOrigin->type);
+        $this->assertSame('Александр', $dto->forwardOrigin->firstName);
+        $this->assertSame('Alex_itsellopt', $dto->forwardOrigin->username);
+        $this->assertSame(579219779, $dto->forwardOrigin->userId);
+    }
+
+    /**
+     * forward_origin type=hidden_user → forwardOrigin заполнен с именем из sender_user_name.
+     */
+    public function test_extracts_forward_origin_from_hidden_user(): void
+    {
+        $dto = $this->parser->parse($this->forwardedFromHiddenUserUpdate());
+
+        $this->assertNotNull($dto->forwardOrigin);
+        $this->assertSame('hidden_user', $dto->forwardOrigin->type);
+        $this->assertSame('Скрытый пользователь', $dto->forwardOrigin->firstName);
+        $this->assertNull($dto->forwardOrigin->username);
+        $this->assertNull($dto->forwardOrigin->userId);
+    }
+
+    /**
+     * Нет forward_origin и forward_from → forwardOrigin равен null.
+     */
+    public function test_forward_origin_is_null_when_not_forwarded(): void
+    {
+        $dto = $this->parser->parse($this->textUpdate('Обычное сообщение'));
+
+        $this->assertNull($dto->forwardOrigin);
+    }
+
+    /**
+     * Только forward_from (старый API без forward_origin) → forwardOrigin заполнен.
+     */
+    public function test_extracts_forward_origin_from_legacy_forward_from(): void
+    {
+        $dto = $this->parser->parse($this->legacyForwardedUpdate());
+
+        $this->assertNotNull($dto->forwardOrigin);
+        $this->assertSame('user', $dto->forwardOrigin->type);
+        $this->assertSame('Легаси', $dto->forwardOrigin->firstName);
+        $this->assertSame('legacy_user', $dto->forwardOrigin->username);
+        $this->assertSame(999888, $dto->forwardOrigin->userId);
+    }
+
+    // --- Forward fixtures ---
+
+    private function forwardedFromUserUpdate(): array
+    {
+        return [
+            'update_id' => 294206968,
+            'message' => [
+                'message_id' => 123,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene ✨'],
+                'chat' => ['id' => 746276963, 'type' => 'private'],
+                'date' => 1777629947,
+                'forward_origin' => [
+                    'type' => 'user',
+                    'sender_user' => [
+                        'id' => 579219779,
+                        'is_bot' => false,
+                        'first_name' => 'Александр',
+                        'username' => 'Alex_itsellopt',
+                    ],
+                    'date' => 1777466884,
+                ],
+                'forward_from' => [
+                    'id' => 579219779,
+                    'is_bot' => false,
+                    'first_name' => 'Александр',
+                    'username' => 'Alex_itsellopt',
+                ],
+                'forward_date' => 1777466884,
+                'photo' => [
+                    ['file_id' => 'file_id_small',  'file_unique_id' => 'u1', 'width' => 90,   'height' => 15],
+                    ['file_id' => 'file_id_large',  'file_unique_id' => 'u2', 'width' => 1280, 'height' => 220],
+                ],
+                'caption' => 'Підкажіть: питання по оновленню',
+            ],
+        ];
+    }
+
+    private function forwardedFromHiddenUserUpdate(): array
+    {
+        return [
+            'update_id' => 294206969,
+            'message' => [
+                'message_id' => 124,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene'],
+                'chat' => ['id' => 746276963, 'type' => 'private'],
+                'date' => 1777630000,
+                'forward_origin' => [
+                    'type' => 'hidden_user',
+                    'sender_user_name' => 'Скрытый пользователь',
+                    'date' => 1777466884,
+                ],
+                'text' => 'Пересланное сообщение от скрытого пользователя',
+            ],
+        ];
+    }
+
+    private function legacyForwardedUpdate(): array
+    {
+        return [
+            'update_id' => 294206970,
+            'message' => [
+                'message_id' => 125,
+                'from' => ['id' => 746276963, 'username' => 'eugeneoleinykov', 'first_name' => 'Eugene'],
+                'chat' => ['id' => 746276963, 'type' => 'private'],
+                'date' => 1777630100,
+                'forward_from' => [
+                    'id' => 999888,
+                    'is_bot' => false,
+                    'first_name' => 'Легаси',
+                    'username' => 'legacy_user',
+                ],
+                'forward_date' => 1777466884,
+                'text' => 'Легаси пересланное сообщение',
+            ],
+        ];
+    }
+
     private function photoUpdate(?string $caption = null): array
     {
         return [

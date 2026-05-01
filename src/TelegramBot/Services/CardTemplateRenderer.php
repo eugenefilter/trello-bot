@@ -59,6 +59,8 @@ TPL;
             '{{text}}' => $text,
             '{{chat_type}}' => $message->chatType,
             '{{reply_text}}' => $message->replyToMessage?->getText() ?? '',
+            '{{forward_first_name}}' => $message->forwardOrigin?->firstName ?? '',
+            '{{forward_username}}' => $message->forwardOrigin?->username ?? '',
         ];
 
         return str_replace(array_keys($vars), array_values($vars), $template);
