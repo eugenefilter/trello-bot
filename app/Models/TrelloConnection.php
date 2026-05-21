@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Подключение к Trello-доске.
@@ -16,17 +18,33 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class TrelloConnection extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'name',
         'api_key',
         'api_token',
         'board_id',
         'is_active',
+        'webhook_token',
+        'webhook_id',
+        'webhook_registered_at',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected static function booted(): void
+    {
+        static::creating(function (self $connection): void {
+            $connection->webhook_token ??= Str::uuid()->toString();
+        });
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+            'webhook_registered_at' => 'datetime',
+        ];
+    }
 
     public function lists(): HasMany
     {
