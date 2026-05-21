@@ -2,7 +2,9 @@
 
 namespace App\Filament\Admin\Resources\TrelloMembers;
 
+use App\Filament\Admin\Resources\TrelloMembers\Pages\EditTrelloMember;
 use App\Filament\Admin\Resources\TrelloMembers\Pages\ListTrelloMembers;
+use App\Filament\Admin\Resources\TrelloMembers\Schemas\TrelloMemberForm;
 use App\Filament\Admin\Resources\TrelloMembers\Tables\TrelloMembersTable;
 use App\Models\TrelloMember;
 use BackedEnum;
@@ -29,7 +31,7 @@ class TrelloMemberResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema->components([]);
+        return TrelloMemberForm::configure($schema);
     }
 
     public static function table(Table $table): Table
@@ -46,6 +48,7 @@ class TrelloMemberResource extends Resource
     {
         return [
             'index' => ListTrelloMembers::route('/'),
+            'edit' => EditTrelloMember::route('/{record}/edit'),
         ];
     }
 }
